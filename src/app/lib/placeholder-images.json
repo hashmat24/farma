@@ -1,0 +1,17 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-pharmacy",
+      "description": "Modern pharmacy interior",
+      "imageUrl": "https://picsum.photos/seed/curacare1/1200/600",
+      "imageHint": "modern pharmacy"
+    },
+    {
+      "id": "pharmacist-ai",
+      "description": "AI Digital Assistant",
+      "imageUrl": "https://picsum.photos/seed/curacare2/400/400",
+      "imageHint": "artificial intelligence"
+    }
+  ]
+}
