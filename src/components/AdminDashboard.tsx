@@ -1,6 +1,6 @@
-
 'use client';
 
+import { useState, useEffect } from 'react';
 import { 
   Table, 
   TableBody, 
@@ -32,6 +32,17 @@ type DashboardProps = {
 };
 
 export function AdminDashboard({ data }: DashboardProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const formatDate = (dateStr: string) => {
+    if (!mounted) return "";
+    return new Date(dateStr).toLocaleDateString();
+  };
+
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -158,7 +169,7 @@ export function AdminDashboard({ data }: DashboardProps) {
                       <TableCell className="font-mono text-xs">{alert.patient_id}</TableCell>
                       <TableCell>{alert.medicine_name}</TableCell>
                       <TableCell className="font-bold text-orange-700">{alert.days_left}d</TableCell>
-                      <TableCell>{new Date(alert.exhaustion_date).toLocaleDateString()}</TableCell>
+                      <TableCell>{formatDate(alert.exhaustion_date)}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -195,7 +206,7 @@ export function AdminDashboard({ data }: DashboardProps) {
                   <TableCell>{order.patient_id}</TableCell>
                   <TableCell>{data.medicines.find(m => m.id === order.medicine_id)?.name}</TableCell>
                   <TableCell>{order.qty}</TableCell>
-                  <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
+                  <TableCell>{formatDate(order.date)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-green-600">
                       <CheckCircle2 className="h-3 w-3" /> {order.status}

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -19,6 +18,7 @@ type Message = {
 };
 
 export function ChatInterface() {
+  const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: 'Hello! I am your AI Pharmacist. How can I help you today? I can check your refill status or process a new medication order.' }
   ]);
@@ -27,6 +27,10 @@ export function ChatInterface() {
   const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -43,7 +47,6 @@ export function ChatInterface() {
     setIsLoading(true);
 
     try {
-      // Mock patient ID for demo
       const result = await chatAction('patient123', userMsg);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
@@ -92,6 +95,17 @@ export function ChatInterface() {
 
     recognition.start();
   };
+
+  if (!mounted) {
+    return (
+      <Card className="flex flex-col h-[75vh] w-full max-w-4xl mx-auto shadow-xl border-t-4 border-t-primary bg-background/50 backdrop-blur">
+        <div className="p-4 border-b flex items-center justify-between bg-card">
+          <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+        </div>
+        <div className="flex-1 p-4 bg-muted/10" />
+      </Card>
+    );
+  }
 
   return (
     <Card className="flex flex-col h-[75vh] w-full max-w-4xl mx-auto shadow-xl border-t-4 border-t-primary bg-background/50 backdrop-blur">
