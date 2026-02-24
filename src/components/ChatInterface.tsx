@@ -58,7 +58,7 @@ export function ChatInterface() {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to get a response from the AI pharmacist.'
+        description: 'Failed to get a response from the AI pharmacist. Please check your connection and try again.'
       });
     } finally {
       setIsLoading(false);
@@ -66,7 +66,7 @@ export function ChatInterface() {
   };
 
   const toggleSpeech = () => {
-    if (!('webkitSpeechRecognition' in window)) {
+    if (typeof window === 'undefined' || !('webkitSpeechRecognition' in window)) {
       toast({
         variant: 'destructive',
         title: 'Not Supported',
