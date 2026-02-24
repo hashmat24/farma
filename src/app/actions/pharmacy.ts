@@ -1,7 +1,6 @@
-
 'use server';
 
-import { db, Medicine, Order, RefillAlert } from '@/app/lib/db';
+import { db } from '@/app/lib/db';
 import { automatedPrescriptionOrdering } from '@/ai/flows/automated-prescription-ordering-flow';
 import { aiPoweredPredictiveRefillInquiry } from '@/ai/flows/ai-powered-predictive-refill-inquiry-flow';
 
@@ -21,7 +20,6 @@ export async function getDashboardData() {
   const medicines = db.getMedicines();
   const lowStock = medicines.filter(m => m.stock_qty < m.reorder_threshold);
   const orders = db.getOrders();
-  // Simplified refill alerts for all known patients in mock
   const patients = ['patient123']; 
   const refillAlerts = patients.flatMap(p => db.calculateRefills(p)).filter(a => a.alert);
   
@@ -35,34 +33,37 @@ export async function getDashboardData() {
 
 export async function chatAction(patientId: string, message: string) {
   const trace_id = `tr-${Date.now()}`;
-  
-  // Decide which flow to use based on keywords for demo purposes
-  // In a real app, one agent handles everything
   const lowerMsg = message.toLowerCase();
   
-  let response;
-  let order_id;
-
-  if (lowerMsg.includes('refill') || lowerMsg.includes('when') || lowerMsg.includes('how many days')) {
-    response = await aiPoweredPredictiveRefillInquiry({
-      patientId,
-      medicineName: message // simplified
-    });
-  } else {
-    const result = await automatedPrescriptionOrdering({
-      patient_id: patientId,
-      message,
-      trace_id
-    });
-    response = result.response;
-    order_id = result.order_id;
+  try {
+    if (lowerMsg.includes('refill') || lowerMsg.includes('when') || lowerMsg.includes('how many days') || lowerMsg.includes('due')) {
+      const response = await aiPoweredPredictiveRefillInquiry({
+        patientId,
+        medicineName: message 
+      });
+      return {
+        response,
+        trace_url: `https://cloud.langfuse.com/project/demo/traces/${trace_id}`,
+      };
+    } else {
+      const result = await automatedPrescriptionOrdering({
+        patient_id: patientId,
+        message,
+        trace_id
+      });
+      return {
+        response: result.response,
+        trace_url: `https://cloud.langfuse.com/project/demo/traces/${trace_id}`,
+        order_id: result.order_id
+      };
+    }
+  } catch (error) {
+    console.error('Chat Action Error:', error);
+    return {
+      response: "I'm having trouble connecting to my pharmacy systems right now. Please try again in a moment.",
+      trace_url: null
+    };
   }
-
-  return {
-    response,
-    trace_url: `https://cloud.langfuse.com/project/demo/traces/${trace_id}`, // Mock Langfuse URL
-    order_id
-  };
 }
 
 export async function updateInventory(medicineId: string, qtyToReduce: number) {

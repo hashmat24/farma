@@ -70,7 +70,6 @@ const calculateRefillTool = ai.defineTool(
   },
   async input => {
     // Mock implementation for demonstration.
-    // In a production environment, this would call a backend service (e.g., database, API).
     console.log(`Calling mock calculateRefill tool for patient ${input.patient_id}`);
 
     if (input.patient_id === 'patient123') {
@@ -102,7 +101,6 @@ const calculateRefillTool = ai.defineTool(
           },
         ];
       } else if (!input.medicine_name && !input.medicine_id) {
-        // Return all medicines for the patient if no specific medicine is requested
         return [
           {
             medicine: 'Ibuprofen',
@@ -125,45 +123,29 @@ const calculateRefillTool = ai.defineTool(
         ];
       }
     }
-    return []; // No data for other patients or if medicine not found
+    return [];
   }
 );
 
 /**
  * Defines the prompt for the AI Pharmacist to handle refill inquiries.
- * It makes the `calculateRefillTool` available for the LLM to use.
  */
 const refillInquiryPrompt = ai.definePrompt({
   name: 'refillInquiryPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: {schema: PredictiveRefillInquiryInputSchema},
   output: {schema: PredictiveRefillInquiryOutputSchema},
-  tools: [calculateRefillTool], // Make the tool available to the prompt
+  tools: [calculateRefillTool],
   system: `You are an AI Pharmacist. Your primary goal is to assist patients with refill inquiries.
 
 To do this, you must use the 'calculateRefill' tool.
-When the user asks about refills for a specific patient and optionally a specific medicine, call the 'calculateRefill' tool with the provided patient ID and medicine details (medicine name or ID, if any).
+When the user asks about refills for a specific patient and optionally a specific medicine, call the 'calculateRefill' tool with the provided patient ID and medicine details.
 
-Then, summarize the results from the tool in a clear, concise, and empathetic manner.
-
-If there are multiple medicines, list them clearly with their status. If only one medicine is inquired about, provide a specific answer for that medicine.
-
-If no refill information is found, or if the tool returns an empty list, politely inform the user that you could not find information for their request at this time. Encourage them to verify the medicine name or contact support if needed.
-
+Summarize the results clearly and empathetically.
 Format exhaustion dates in a human-readable format (e.g., "January 1, 2024").
-If an alert is triggered (daysLeft <= 2), emphasize this and suggest ordering soon or now.
+If an alert is triggered (daysLeft <= 2), emphasize this and suggest ordering soon.
 
-Example response for multiple medicines:
-"Hello! Here's your refill status:
-- Ibuprofen: You have about 1 day left. Your estimated exhaustion date is January 1, 2024. Please order soon!
-- Lisinopril: You have about 7 days left. Your estimated exhaustion date is January 7, 2024. You have plenty of time.
-- Amoxicillin: You are out of this medicine. Your estimated exhaustion date was December 31, 2023. Please order a refill now!"
-
-Example response for a single medicine with alert:
-"Hello! For Ibuprofen, you have about 1 day left. Your estimated exhaustion date is January 1, 2024. Please order soon!"
-
-Example response for no medicines:
-"Hello! I couldn't find any refill information for the requested medicine or for your account at this time. Please ensure the medicine name is correct or contact support."
-  `,
+If no information is found, politely inform the user and encourage them to verify the medicine name.`,
   prompt: `Patient ID: {{{patientId}}}
 {{#if medicineName}}Medicine Name: {{{medicineName}}}{{/if}}
 {{#if medicineId}}Medicine ID: {{{medicineId}}}{{/if}}
@@ -172,7 +154,6 @@ Example response for no medicines:
 
 /**
  * Defines the Genkit flow for predictive refill inquiries.
- * It orchestrates the call to the AI Pharmacist prompt.
  */
 const aiPoweredPredictiveRefillInquiryFlow = ai.defineFlow(
   {
@@ -182,15 +163,10 @@ const aiPoweredPredictiveRefillInquiryFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await refillInquiryPrompt(input);
-    return output!;
+    return output || "I'm sorry, I couldn't process your refill inquiry at this moment.";
   }
 );
 
-/**
- * Wrapper function to call the AI-powered predictive refill inquiry flow.
- * @param input The patient ID and optional medicine details.
- * @returns A promise that resolves to a natural language response regarding refill status.
- */
 export async function aiPoweredPredictiveRefillInquiry(
   input: PredictiveRefillInquiryInput
 ): Promise<PredictiveRefillInquiryOutput> {
