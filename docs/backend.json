@@ -1,0 +1,198 @@
+{
+  "entities": {
+    "Medicine": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Medicine",
+      "type": "object",
+      "description": "Represents a pharmaceutical product available in the inventory, including its details, stock levels, and dispensing requirements.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Medicine entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The commercial name of the medicine."
+        },
+        "dosage": {
+          "type": "string",
+          "description": "The prescribed dosage instructions for the medicine (e.g., '500mg once daily', '1 tablet twice daily')."
+        },
+        "quantityInStock": {
+          "type": "number",
+          "description": "The current physical quantity of the medicine available in inventory."
+        },
+        "reorderThreshold": {
+          "type": "number",
+          "description": "The minimum stock quantity at which a reorder alert should be triggered for this medicine."
+        },
+        "prescriptionRequired": {
+          "type": "boolean",
+          "description": "Indicates whether a prescription is legally required to dispense this medicine."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "dosage",
+        "quantityInStock",
+        "reorderThreshold",
+        "prescriptionRequired"
+      ]
+    },
+    "Patient": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Patient",
+      "type": "object",
+      "description": "Represents a patient who interacts with the AI pharmacist and places orders.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Patient entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the patient."
+        },
+        "email": {
+          "type": "string",
+          "description": "The patient's email address for communication.",
+          "format": "email"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The patient's contact phone number."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Order": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Order",
+      "type": "object",
+      "description": "Represents a transaction for a medicine order placed by a patient.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Order entity."
+        },
+        "patientId": {
+          "type": "string",
+          "description": "Reference to Patient. (Relationship: Patient 1:N Order)"
+        },
+        "medicineId": {
+          "type": "string",
+          "description": "Reference to Medicine. (Relationship: Medicine 1:N Order)"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "The quantity of medicine ordered in this transaction."
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "The date and time when the order was placed.",
+          "format": "date-time"
+        },
+        "traceId": {
+          "type": "string",
+          "description": "Identifier for the Langfuse trace associated with the AI agent's processing of this order."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current fulfillment status of the order (e.g., 'pending', 'dispatched', 'completed', 'rejected')."
+        }
+      },
+      "required": [
+        "id",
+        "patientId",
+        "medicineId",
+        "quantity",
+        "orderDate",
+        "traceId",
+        "status"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/medicines/{medicineId}",
+        "definition": {
+          "entityName": "Medicine",
+          "schema": {
+            "$ref": "#/backend/entities/Medicine"
+          },
+          "description": "Global inventory of medicines. Read access is allowed for all authenticated users (including the AI agent) for querying product information. Write access is restricted to administrators or automated system processes for stock management.",
+          "params": [
+            {
+              "name": "medicineId",
+              "description": "Unique identifier for a specific medicine document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/patients/{patientId}",
+        "definition": {
+          "entityName": "Patient",
+          "schema": {
+            "$ref": "#/backend/entities/Patient"
+          },
+          "description": "Stores individual patient profile data. Each document is owned by the authenticated user whose `uid` matches `{patientId}`. This structure provides path-based ownership for private patient data.",
+          "params": [
+            {
+              "name": "patientId",
+              "description": "Unique identifier for the patient, matching the Firebase Authentication `uid`."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/patients/{patientId}/orders/{orderId}",
+        "definition": {
+          "entityName": "Order",
+          "schema": {
+            "$ref": "#/backend/entities/Order"
+          },
+          "description": "Stores individual orders placed by a patient. This is a subcollection under a specific patient's profile. The `patientId` in the path directly links the order to the `request.auth.uid` of the patient, ensuring Authorization Independence. The `patientId` field is also denormalized within the document for query flexibility and robust authorization.",
+          "params": [
+            {
+              "name": "patientId",
+              "description": "Unique identifier for the patient who placed the order, matching the parent patient's `uid`."
+            },
+            {
+              "name": "orderId",
+              "description": "Unique identifier for a specific order document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{adminId}",
+        "definition": {
+          "entityName": "AdminRole",
+          "schema": {
+            "$ref": "#/backend/entities/AdminRole"
+          },
+          "description": "Designates a user as an administrator. The existence of a document at this path, where `adminId` matches `request.auth.uid`, grants administrative privileges. This uses 'Existence over Content' for role-based access control.",
+          "params": [
+            {
+              "name": "adminId",
+              "description": "Unique identifier for the user who is an administrator, matching their Firebase Authentication `uid`."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed following the core principles of Authorization Independence, Structural Segregation, and consistent Access Modeling to ensure security, scalability, and debuggability. \n\n1.  **Authorization Independence:** This is achieved by ensuring that authorization decisions for a document do not require fetching data from a parent document. For `/patients/{patientId}/orders/{orderId}`, the `patientId` is available directly from the path, which can be compared against `request.auth.uid`. Additionally, the `Order` document itself includes a `patientId` field, explicitly denormalizing the owner's ID within the document. This allows for atomic operations (e.g., creating an order) and eliminates the need for `get()` calls in security rules, significantly simplifying rule logic and improving performance.\n\n2.  **QAPs (Rules are not Filters):**\n    *   **Medicines:** The `/medicines` collection holds global, publicly readable inventory data. Any `list` query to `/medicines` by an authenticated user will return all documents, satisfying the QAP without needing rules to filter results. Write access is restricted to administrators.\n    *   **Patient Profiles:** The `/patients/{patientId}` collection provides direct path-based ownership. A `list` operation on this collection is not typically performed by individual users to see *all* patients; rather, they would directly access their own `/patients/request.auth.uid` document. Rules ensure that `request.auth.uid` matches `{patientId}` for read/write access to individual patient profiles.\n    *   **Patient Orders:** The `/patients/{patientId}/orders/{orderId}` subcollection ensures that a patient can only `list` or `get` orders within their own `{patientId}` path (where `{patientId}` matches `request.auth.uid`). This means a `list` query to `/patients/request.auth.uid/orders` will securely return *all* of the requesting user's orders without any server-side filtering being required by rules, thus adhering to QAPs. For administrative access, a distinct rule for `/roles_admin/{uid}` grants broad read access across all patient orders, enabling the Admin Dashboard to fulfill its requirements without violating QAPs for regular users, as admins operate under a different security posture."
+  }
+}
