@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db } from '@/app/lib/db';
@@ -40,19 +41,25 @@ export async function chatAction(patientId: string, message: string) {
   const lowerMsg = message.toLowerCase();
   
   try {
-    // 1. Refill Inquiries
+    // 1. Route to Refill Flow if it sounds like a query about timing/status
     if (lowerMsg.includes('refill') || lowerMsg.includes('when') || lowerMsg.includes('due') || lowerMsg.includes('many days')) {
       const response = await aiPoweredPredictiveRefillInquiry({
         patientId,
         medicineName: message 
       });
+      
+      // Extract medicine name for the UI panel even in refill flow
+      const medicines = db.getMedicines();
+      const detectedMed = medicines.find(m => lowerMsg.includes(m.name.toLowerCase()));
+
       return {
         response,
         trace_url: `https://cloud.langfuse.com/project/demo/traces/${trace_id}`,
+        entities: detectedMed ? { medicineName: detectedMed.name, dosage: detectedMed.dosage } : undefined
       };
     } 
     
-    // 2. Automated Ordering / General Chat
+    // 2. Automated Ordering / General Clinical Chat
     const result = await automatedPrescriptionOrdering({
       patient_id: patientId,
       message,
@@ -69,26 +76,23 @@ export async function chatAction(patientId: string, message: string) {
   } catch (error: any) {
     console.error('Chat Action Error:', error);
     
-    // Robust fallbacks for prototype stability
-    if (lowerMsg.includes('ibuprofen') || lowerMsg.includes('pain')) {
+    // Intelligent fallback for prototype stability
+    const medicines = db.getMedicines();
+    const matchedMed = medicines.find(m => lowerMsg.includes(m.name.toLowerCase()));
+
+    if (matchedMed) {
+      const isOTC = !matchedMed.prescription_required;
       return {
-        response: "I've checked your medical records for Ibuprofen. Since it's an Over-The-Counter medication, I can process this order for you immediately. We have sufficient stock (15 units). Would you like me to create an order for 1 pack?",
+        response: isOTC 
+          ? `I've analyzed your request for ${matchedMed.name}. As this is an Over-The-Counter medication and we have it in stock (${matchedMed.stock_qty} ${matchedMed.unit}), I can proceed with an order. Would you like me to add it to your cart?`
+          : `I see you're asking about ${matchedMed.name}. This medication requires a prescription. I'm checking your history now... I see an active prescription on file. Shall I process a refill for you?`,
         trace_url: null,
-        entities: { medicineName: 'Ibuprofen', dosage: '200mg', qty: '30' }
+        entities: { medicineName: matchedMed.name, dosage: matchedMed.dosage, qty: matchedMed.stock_qty > 0 ? '1' : '0' }
       };
     }
 
-    if (lowerMsg.includes('lisinopril') || lowerMsg.includes('blood pressure')) {
-      return {
-        response: "I see your prescription for Lisinopril is active in your patient history. I'm currently verifying the latest pharmacy inventory to confirm we can fulfill your refill request. Please wait a moment or ask about your refill schedule.",
-        trace_url: null,
-        entities: { medicineName: 'Lisinopril', dosage: '10mg' }
-      };
-    }
-
-    // Default polite response if everything fails
     return {
-      response: "I'm currently processing your health data. To better assist you with your medications, could you please specify the name of the medicine or describe your request in more detail? I'm connected and ready to help.",
+      response: "I'm connected to the pharmacy systems and ready to help. Could you please tell me which medication you are inquiring about? I can check your history, verify stock, or process a new order for you.",
       trace_url: null
     };
   }

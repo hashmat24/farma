@@ -1,7 +1,8 @@
+
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -32,6 +33,14 @@ type ReasoningStep = {
   details?: string;
 };
 
+const INITIAL_STEPS: ReasoningStep[] = [
+  { id: 'history', label: 'Retrieving User History', status: 'pending' },
+  { id: 'extraction', label: 'Initial Entity Extraction', status: 'pending' },
+  { id: 'prescription', label: 'Prescription Verification', status: 'pending' },
+  { id: 'inventory', label: 'Inventory Validation', status: 'pending' },
+  { id: 'dispatch', label: 'Order Processing', status: 'pending' },
+];
+
 export function ChatInterface() {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -44,15 +53,7 @@ export function ChatInterface() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [patientInfo, setPatientInfo] = useState<any>(null);
-  
-  const [reasoningSteps, setReasoningSteps] = useState<ReasoningStep[]>([
-    { id: 'history', label: 'Retrieving User History', status: 'pending' },
-    { id: 'extraction', label: 'Initial Entity Extraction', status: 'pending' },
-    { id: 'prescription', label: 'Prescription Verification', status: 'pending' },
-    { id: 'inventory', label: 'Inventory Validation', status: 'pending' },
-    { id: 'dispatch', label: 'Order Processing', status: 'pending' },
-  ]);
-
+  const [reasoningSteps, setReasoningSteps] = useState<ReasoningStep[]>(INITIAL_STEPS);
   const [activeEntities, setActiveEntities] = useState<Message['entities']>(undefined);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -63,23 +64,42 @@ export function ChatInterface() {
     getPatientInfo('patient123').then(setPatientInfo);
   }, []);
 
-  useEffect(() => {
+  const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isLoading]);
+  }, []);
 
-  const simulateReasoning = async () => {
-    const steps = [...reasoningSteps].map(s => ({ ...s, status: 'pending' as const }));
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading, scrollToBottom]);
+
+  const runReasoningAnimation = async () => {
+    const steps = INITIAL_STEPS.map(s => ({ ...s, status: 'pending' as const }));
     setReasoningSteps(steps);
     
-    for (let i = 0; i < steps.length; i++) {
+    // Run through first 3 steps quickly to show activity
+    for (let i = 0; i < 3; i++) {
       steps[i].status = 'loading';
       setReasoningSteps([...steps]);
-      await new Promise(r => setTimeout(r, 600));
+      await new Promise(r => setTimeout(r, 400));
       steps[i].status = 'completed';
       setReasoningSteps([...steps]);
     }
+    
+    // Remaining steps are handled after the AI returns or during wait
+    steps[3].status = 'loading';
+    setReasoningSteps([...steps]);
+  };
+
+  const finishReasoningAnimation = async () => {
+    const steps = [...reasoningSteps];
+    steps[3].status = 'completed';
+    steps[4].status = 'loading';
+    setReasoningSteps([...steps]);
+    await new Promise(r => setTimeout(r, 300));
+    steps[4].status = 'completed';
+    setReasoningSteps([...steps]);
   };
 
   const handleSend = async () => {
@@ -92,9 +112,14 @@ export function ChatInterface() {
     setIsLoading(true);
 
     try {
-      simulateReasoning();
+      // Start reasoning chain animation
+      runReasoningAnimation();
 
       const result = await chatAction('patient123', userMsg);
+      
+      // Complete reasoning chain
+      await finishReasoningAnimation();
+
       const assistantTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
       if (result.entities) {
@@ -111,6 +136,9 @@ export function ChatInterface() {
     } catch (error) {
       console.error('Chat Error:', error);
       toast({ variant: 'destructive', title: 'Error', description: 'Pharmacy service offline. Please check connectivity.' });
+      
+      // Reset reasoning steps on error
+      setReasoningSteps(INITIAL_STEPS);
     } finally {
       setIsLoading(false);
     }
