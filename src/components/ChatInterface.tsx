@@ -2,15 +2,16 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Mic, ExternalLink, Loader2, CheckCircle2, Info } from 'lucide-react';
+import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { chatAction } from '@/app/actions/pharmacy';
+import { chatAction, getPatientInfo } from '@/app/actions/pharmacy';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -37,31 +38,31 @@ export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'assistant', 
-      content: 'Perfect! I\'ve extracted the following details for your **30 days** plan:\n\n• Medicine: Acetaminophen\n• Dosage: 500mg\n• Quantity: 120 tablets\n• Supply Duration: 30 days\n• Daily Dosage: 2 tablets every 6 hours\n\n✅ **Quick Actions are now available** in the left panel!\n\n🔔 **Note:** A refill alert will be automatically set for 28 days from now (2 days before your supply runs out).',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      entities: { medicineName: 'Acetaminophen', dosage: '500mg', qty: '120 tablets', duration: '30 days' }
+      content: 'Hello! I am your AI Pharmacist. How can I help you with your medications today?',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [patientInfo, setPatientInfo] = useState<any>(null);
+  
   const [reasoningSteps, setReasoningSteps] = useState<ReasoningStep[]>([
-    { id: 'extraction', label: 'Initial Entity Extraction', status: 'completed' },
+    { id: 'history', label: 'Retrieving User History', status: 'pending' },
+    { id: 'extraction', label: 'Initial Entity Extraction', status: 'pending' },
     { id: 'prescription', label: 'Prescription Verification', status: 'pending' },
     { id: 'inventory', label: 'Inventory Validation', status: 'pending' },
-    { id: 'dispatch', label: 'Warehouse Sync', status: 'pending' },
+    { id: 'dispatch', label: 'Order Processing', status: 'pending' },
   ]);
-  const [activeEntities, setActiveEntities] = useState<Message['entities']>({
-    medicineName: 'Acetaminophen',
-    dosage: '500mg',
-    qty: '120 tablets',
-    duration: '30 days'
-  });
+
+  const [activeEntities, setActiveEntities] = useState<Message['entities']>(undefined);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     setMounted(true);
+    // Simulate loading a specific user (John Doe)
+    getPatientInfo('patient123').then(setPatientInfo);
   }, []);
 
   useEffect(() => {
@@ -88,7 +89,7 @@ export function ChatInterface() {
 
     const userMsg = input;
     setInput('');
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setMessages(prev => [...prev, { role: 'user', content: userMsg, timestamp }]);
     setIsLoading(true);
 
@@ -96,24 +97,18 @@ export function ChatInterface() {
       simulateReasoning();
 
       const result = await chatAction('patient123', userMsg);
-      const assistantTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const assistantTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
-      const lowerInput = userMsg.toLowerCase();
-      let mockEntities = undefined;
-      if (lowerInput.includes('paracetamol') || lowerInput.includes('acetaminophen')) {
-        mockEntities = { medicineName: 'Acetaminophen', dosage: '500mg', qty: '120 tablets', duration: '30 days' };
-      } else if (lowerInput.includes('ibuprofen')) {
-        mockEntities = { medicineName: 'Ibuprofen', dosage: '200mg', qty: '60 capsules', duration: '30 days' };
+      if (result.entities) {
+        setActiveEntities(result.entities);
       }
-
-      if (mockEntities) setActiveEntities(mockEntities);
 
       setMessages(prev => [...prev, { 
         role: 'assistant', 
         content: result.response,
         timestamp: assistantTimestamp,
         traceUrl: result.trace_url || undefined,
-        entities: mockEntities
+        entities: result.entities
       }]);
     } catch (error) {
       toast({ variant: 'destructive', title: 'Error', description: 'Pharmacy service offline.' });
@@ -125,66 +120,97 @@ export function ChatInterface() {
   if (!mounted) return null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[75vh]">
-      {/* 1. Extracted Entities Panel */}
-      <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold text-[#1E293B]">Extracted Entities</CardTitle>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[80vh]">
+      {/* 1. Patient Context Panel */}
+      <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col">
+        <CardHeader className="pb-4 bg-slate-50/50">
+          <CardTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
+            <User className="h-5 w-5 text-primary" /> Patient Context
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Medicine Name</p>
-            <div className="px-4 py-2 rounded-xl bg-[#EEF2FF] border border-[#E0E7FF] text-[#4F46E5] font-bold text-sm">
-              {activeEntities?.medicineName || <span className="opacity-40 italic">Not detected</span>}
+        <CardContent className="space-y-6 pt-6 flex-1 overflow-auto">
+          {patientInfo ? (
+            <>
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-slate-700">{patientInfo.name}</p>
+                <p className="text-xs text-slate-500">ID: {patientInfo.member_id} • Age: {patientInfo.age}</p>
+              </div>
+              
+              <Separator />
+
+              <div className="space-y-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                  <ClipboardList className="h-3 w-3" /> Medical History
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {patientInfo.history.map((h: string, i: number) => (
+                    <Badge key={i} variant="secondary" className="bg-slate-100 text-slate-600 border-none font-medium">
+                      {h}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Extracted from Chat</p>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Medicine</p>
+                    <div className="px-3 py-1.5 rounded-lg bg-[#EEF2FF] border border-[#E0E7FF] text-[#4F46E5] font-bold text-xs truncate">
+                      {activeEntities?.medicineName || <span className="opacity-40 italic">Waiting...</span>}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Dosage</p>
+                    <div className="px-3 py-1.5 rounded-lg bg-[#F0FDF4] border border-[#DCFCE7] text-[#166534] font-bold text-xs truncate">
+                      {activeEntities?.dosage || <span className="opacity-40 italic">Waiting...</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-6 w-6 animate-spin text-slate-200" />
             </div>
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Dosage</p>
-            <div className="px-4 py-2 rounded-xl bg-[#EEF2FF] border border-[#E0E7FF] text-[#4F46E5] font-bold text-sm">
-              {activeEntities?.dosage || <span className="opacity-40 italic">Not detected</span>}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quantity</p>
-            <div className="px-4 py-2 rounded-xl bg-[#F0FDF4] border border-[#DCFCE7] text-[#166534] font-bold text-sm">
-              {activeEntities?.qty || <span className="opacity-40 italic">Not detected</span>}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Supply Duration</p>
-            <div className="px-4 py-2 rounded-xl bg-[#FFF7ED] border border-[#FFEDD5] text-[#9A3412] font-bold text-sm">
-              {activeEntities?.duration || <span className="opacity-40 italic">Not detected</span>}
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* 2. Main AI Pharmacist Chat */}
+      {/* 2. Main Chat Window */}
       <Card className="lg:col-span-6 flex flex-col border-none shadow-lg overflow-hidden bg-white">
-        <div className="p-6 border-b bg-white flex flex-col">
-          <h2 className="text-xl font-bold text-[#1E293B]">AI Pharmacist Chat</h2>
-          <p className="text-sm text-muted-foreground font-medium">Intelligent prescription management</p>
+        <div className="p-4 border-b bg-white flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-[#1E293B]">AI Pharmacist</h2>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Live Healthcare Sync</p>
+            </div>
+          </div>
+          <Badge variant="outline" className="text-primary border-primary/20">Active Session</Badge>
         </div>
 
-        <ScrollArea className="flex-1 p-6 bg-slate-50/20">
+        <ScrollArea className="flex-1 p-6 bg-slate-50/30">
           <div className="space-y-6">
             {messages.map((msg, i) => (
               <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                 <div className={cn(
-                  "px-5 py-3 max-w-[90%] text-sm rounded-2xl shadow-sm",
+                  "px-4 py-3 max-w-[85%] text-sm rounded-2xl shadow-sm",
                   msg.role === 'user' 
                     ? 'bg-[#4D67F6] text-white rounded-tr-none' 
                     : 'bg-white border border-slate-100 text-[#334155] rounded-tl-none'
                 )}>
                   <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
                   <div className={cn(
-                    "mt-3 text-[10px] flex items-center justify-between gap-4 font-bold uppercase tracking-wider",
+                    "mt-2 text-[10px] flex items-center justify-between gap-4 font-bold uppercase tracking-wider",
                     msg.role === 'user' ? "text-white/60" : "text-slate-400"
                   )}>
                     <span>{msg.timestamp}</span>
                     {msg.traceUrl && (
                       <a href={msg.traceUrl} target="_blank" className="flex items-center gap-1 hover:text-primary transition-colors">
-                        <ExternalLink className="h-3 w-3" /> View Reasoning
+                        <ExternalLink className="h-3 w-3" /> Langfuse Trace
                       </a>
                     )}
                   </div>
@@ -192,10 +218,10 @@ export function ChatInterface() {
               </div>
             ))}
             {isLoading && (
-              <div className="flex flex-col items-start animate-in fade-in slide-in-from-left-4 duration-300">
-                <div className="bg-white border rounded-2xl rounded-tl-none px-5 py-3 shadow-sm flex items-center gap-3">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  <span className="text-sm text-slate-400 font-bold uppercase tracking-widest">Pharmacist Thinking...</span>
+              <div className="flex flex-col items-start animate-in fade-in slide-in-from-left-2">
+                <div className="bg-white border rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-3">
+                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Thinking...</span>
                 </div>
               </div>
             )}
@@ -203,64 +229,59 @@ export function ChatInterface() {
           </div>
         </ScrollArea>
 
-        <div className="p-6 border-t bg-white">
-          <div className="flex gap-3 items-center bg-slate-50 px-4 py-2 rounded-2xl border">
+        <div className="p-4 border-t bg-white">
+          <div className="flex gap-2 items-center bg-slate-50 px-3 py-1.5 rounded-xl border">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Type your message or describe your symptoms..."
-              className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 px-0 h-10"
+              placeholder="Ask about refills or order medication..."
+              className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 px-0 h-9 text-sm"
             />
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="rounded-full text-slate-400 hover:text-primary">
-                <Mic className="h-5 w-5" />
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-slate-400 hover:text-primary">
+                <Mic className="h-4 w-4" />
               </Button>
-              <Button onClick={handleSend} disabled={isLoading || !input.trim()} size="icon" className="rounded-full h-10 w-10 bg-[#4D67F6] hover:bg-[#3B54D9]">
-                <Send className="h-4 w-4" />
+              <Button onClick={handleSend} disabled={isLoading || !input.trim()} size="icon" className="rounded-full h-8 w-8 bg-[#4D67F6] hover:bg-[#3B54D9]">
+                <Send className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
         </div>
       </Card>
 
-      {/* 3. Agent Reasoning Panel */}
-      <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold text-[#1E293B]">Agent Reasoning</CardTitle>
-          <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Transparent decision workflow</p>
+      {/* 3. Reasoning & Agent Activity Panel */}
+      <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col">
+        <CardHeader className="pb-4 bg-slate-50/50">
+          <CardTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
+            <Activity className="h-5 w-5 text-indigo-500" /> Reasoning Chain
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 pt-6 flex-1 overflow-auto">
           {reasoningSteps.map((step) => (
             <div key={step.id} className={cn(
-              "p-4 rounded-2xl border transition-all duration-300",
-              step.status === 'completed' ? "bg-white border-slate-100 shadow-sm" : 
+              "p-3 rounded-xl border transition-all duration-300",
+              step.status === 'completed' ? "bg-[#F0FDF4] border-[#DCFCE7]" : 
               step.status === 'loading' ? "bg-primary/5 border-primary/10 animate-pulse" : 
               "bg-slate-50/50 opacity-40"
             )}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-sm text-[#334155]">{step.label}</span>
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-xs text-slate-700">{step.label}</span>
                 {step.status === 'completed' && (
-                  <Badge className="bg-[#DCFCE7] text-[#166534] border-none hover:bg-[#DCFCE7] text-[10px] font-bold">Approved</Badge>
+                  <Badge className="bg-[#DCFCE7] text-[#166534] border-none text-[8px] h-4 px-1">SUCCESS</Badge>
                 )}
-                {step.status === 'loading' && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
+                {step.status === 'loading' && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />}
               </div>
-              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                {step.status === 'completed' ? (
-                  `Verified at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
-                ) : step.status === 'loading' ? (
-                  'Decision chain active...'
-                ) : (
-                  'Awaiting context...'
-                )}
+              <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
+                {step.status === 'completed' ? 'Verified & Validated' : step.status === 'loading' ? 'Processing...' : 'Awaiting Task'}
               </div>
             </div>
           ))}
 
-          <div className="mt-8 p-6 bg-[#F8FAFC] rounded-2xl border border-dashed text-center">
-            <Info className="h-5 w-5 mx-auto mb-3 text-slate-400" />
-            <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">Observability Active</p>
-            <p className="text-[10px] text-slate-400 mt-2 font-mono">Trace: tr-{Date.now().toString().slice(-8)}</p>
+          <div className="mt-auto p-4 bg-slate-50 rounded-xl border border-dashed text-center">
+            <Info className="h-4 w-4 mx-auto mb-2 text-slate-300" />
+            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">Auditability Active</p>
+            <p className="text-[8px] text-slate-400 mt-1 font-mono">Trace ID: tr-{Date.now().toString().slice(-6)}</p>
           </div>
         </CardContent>
       </Card>

@@ -27,6 +27,7 @@ export type Patient = {
   age: number;
   member_id: string;
   history: string[];
+  email: string;
 };
 
 export type RefillAlert = {
@@ -38,7 +39,7 @@ export type RefillAlert = {
   alert: boolean;
 };
 
-// Global singleton with robust initialization to prevent "undefined" errors during HMR
+// Global singleton to simulate an existing dataset
 const globalStore = global as any;
 
 if (!globalStore.medicines) {
@@ -55,6 +56,7 @@ if (!globalStore.orders) {
   globalStore.orders = [
     { id: 'ORD-001', patient_id: 'patient123', medicine_id: 'MED001', qty: 30, date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), status: 'delivered', trace_id: 't-1' },
     { id: 'ORD-002', patient_id: 'patient123', medicine_id: 'MED004', qty: 60, date: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(), status: 'delivered', trace_id: 't-2' },
+    { id: 'ORD-003', patient_id: 'patient456', medicine_id: 'MED003', qty: 10, date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), status: 'shipped', trace_id: 't-3' },
   ];
 }
 
@@ -65,7 +67,16 @@ if (!globalStore.patients) {
       name: 'John Doe', 
       age: 45, 
       member_id: 'CC-9988-AA', 
-      history: ['Hypertension', 'Seasonal Allergies'] 
+      email: 'john.doe@example.com',
+      history: ['Hypertension', 'Seasonal Allergies', 'Lower Back Pain'] 
+    },
+    { 
+      id: 'patient456', 
+      name: 'Sarah Smith', 
+      age: 32, 
+      member_id: 'CC-1122-BB', 
+      email: 'sarah.s@example.com',
+      history: ['Asthma', 'Chronic Sinusitis'] 
     }
   ];
 }

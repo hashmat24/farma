@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db } from '@/app/lib/db';
@@ -12,6 +13,10 @@ export async function getMedicine(id: string) {
   return db.getMedicine(id);
 }
 
+export async function getPatientInfo(patientId: string) {
+  return db.getPatient(patientId);
+}
+
 export async function getUserHistory(patientId: string) {
   return db.getPatientHistory(patientId);
 }
@@ -20,7 +25,7 @@ export async function getDashboardData() {
   const medicines = db.getMedicines();
   const lowStock = medicines.filter(m => m.stock_qty < m.reorder_threshold);
   const orders = db.getOrders();
-  const patients = ['patient123']; 
+  const patients = ['patient123', 'patient456']; 
   const refillAlerts = patients.flatMap(p => db.calculateRefills(p)).filter(a => a.alert);
   
   return {
@@ -54,7 +59,8 @@ export async function chatAction(patientId: string, message: string) {
       return {
         response: result.response,
         trace_url: `https://cloud.langfuse.com/project/demo/traces/${trace_id}`,
-        order_id: result.order_id
+        order_id: result.order_id,
+        entities: result.detected_entities
       };
     }
   } catch (error) {
