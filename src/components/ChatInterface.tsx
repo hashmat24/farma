@@ -69,7 +69,7 @@ export function ChatInterface() {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const simulateReasoning = async () => {
     const steps = [...reasoningSteps].map(s => ({ ...s, status: 'pending' as const }));
@@ -120,15 +120,15 @@ export function ChatInterface() {
   if (!mounted) return null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[80vh]">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[80vh] min-h-0">
       {/* 1. Patient Context Panel */}
-      <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col">
-        <CardHeader className="pb-4 bg-slate-50/50">
+      <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col min-h-0">
+        <CardHeader className="pb-4 bg-slate-50/50 shrink-0">
           <CardTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
             <User className="h-5 w-5 text-primary" /> Patient Context
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6 pt-6 flex-1 overflow-auto">
+        <CardContent className="space-y-6 pt-6 flex-1 overflow-y-auto min-h-0">
           {patientInfo ? (
             <>
               <div className="space-y-1">
@@ -180,8 +180,8 @@ export function ChatInterface() {
       </Card>
 
       {/* 2. Main Chat Window */}
-      <Card className="lg:col-span-6 flex flex-col border-none shadow-lg overflow-hidden bg-white">
-        <div className="p-4 border-b bg-white flex items-center justify-between">
+      <Card className="lg:col-span-6 flex flex-col border-none shadow-lg overflow-hidden bg-white min-h-0">
+        <div className="p-4 border-b bg-white flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-lg font-bold text-[#1E293B]">AI Pharmacist</h2>
             <div className="flex items-center gap-1.5">
@@ -192,8 +192,8 @@ export function ChatInterface() {
           <Badge variant="outline" className="text-primary border-primary/20">Active Session</Badge>
         </div>
 
-        <ScrollArea className="flex-1 p-6 bg-slate-50/30">
-          <div className="space-y-6">
+        <ScrollArea className="flex-1 min-h-0 bg-slate-50/30">
+          <div className="p-6 space-y-6">
             {messages.map((msg, i) => (
               <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                 <div className={cn(
@@ -229,7 +229,7 @@ export function ChatInterface() {
           </div>
         </ScrollArea>
 
-        <div className="p-4 border-t bg-white">
+        <div className="p-4 border-t bg-white shrink-0">
           <div className="flex gap-2 items-center bg-slate-50 px-3 py-1.5 rounded-xl border">
             <Input
               value={input}
@@ -237,6 +237,7 @@ export function ChatInterface() {
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Ask about refills or order medication..."
               className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 px-0 h-9 text-sm"
+              disabled={isLoading}
             />
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-slate-400 hover:text-primary">
@@ -251,34 +252,36 @@ export function ChatInterface() {
       </Card>
 
       {/* 3. Reasoning & Agent Activity Panel */}
-      <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col">
-        <CardHeader className="pb-4 bg-slate-50/50">
+      <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col min-h-0">
+        <CardHeader className="pb-4 bg-slate-50/50 shrink-0">
           <CardTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
             <Activity className="h-5 w-5 text-indigo-500" /> Reasoning Chain
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 pt-6 flex-1 overflow-auto">
-          {reasoningSteps.map((step) => (
-            <div key={step.id} className={cn(
-              "p-3 rounded-xl border transition-all duration-300",
-              step.status === 'completed' ? "bg-[#F0FDF4] border-[#DCFCE7]" : 
-              step.status === 'loading' ? "bg-primary/5 border-primary/10 animate-pulse" : 
-              "bg-slate-50/50 opacity-40"
-            )}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-bold text-xs text-slate-700">{step.label}</span>
-                {step.status === 'completed' && (
-                  <Badge className="bg-[#DCFCE7] text-[#166534] border-none text-[8px] h-4 px-1">SUCCESS</Badge>
-                )}
-                {step.status === 'loading' && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />}
+        <CardContent className="space-y-3 pt-6 flex-1 overflow-y-auto min-h-0">
+          <div className="space-y-3">
+            {reasoningSteps.map((step) => (
+              <div key={step.id} className={cn(
+                "p-3 rounded-xl border transition-all duration-300",
+                step.status === 'completed' ? "bg-[#F0FDF4] border-[#DCFCE7]" : 
+                step.status === 'loading' ? "bg-primary/5 border-primary/10 animate-pulse" : 
+                "bg-slate-50/50 opacity-40"
+              )}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-xs text-slate-700">{step.label}</span>
+                  {step.status === 'completed' && (
+                    <Badge className="bg-[#DCFCE7] text-[#166534] border-none text-[8px] h-4 px-1">SUCCESS</Badge>
+                  )}
+                  {step.status === 'loading' && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />}
+                </div>
+                <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
+                  {step.status === 'completed' ? 'Verified & Validated' : step.status === 'loading' ? 'Processing...' : 'Awaiting Task'}
+                </div>
               </div>
-              <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
-                {step.status === 'completed' ? 'Verified & Validated' : step.status === 'loading' ? 'Processing...' : 'Awaiting Task'}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
 
-          <div className="mt-auto p-4 bg-slate-50 rounded-xl border border-dashed text-center">
+          <div className="mt-8 p-4 bg-slate-50 rounded-xl border border-dashed text-center shrink-0">
             <Info className="h-4 w-4 mx-auto mb-2 text-slate-300" />
             <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">Auditability Active</p>
             <p className="text-[8px] text-slate-400 mt-1 font-mono">Trace ID: tr-{Date.now().toString().slice(-6)}</p>
