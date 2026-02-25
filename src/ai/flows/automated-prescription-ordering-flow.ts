@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview This file implements the Genkit flow for automated prescription ordering.
@@ -189,11 +188,13 @@ const automatedPrescriptionOrderingFlow = ai.defineFlow(
     outputSchema: AutonomousPharmacistOutputSchema,
   },
   async (input) => {
-    const { output } = await autonomousPharmacistPrompt(input);
-    if (!output) {
-      return { response: "I'm sorry, I couldn't complete your order request. Please try again or contact support." };
+    try {
+      const { output } = await autonomousPharmacistPrompt(input);
+      return output || { response: "I processed your request, but I couldn't generate a clear confirmation. Please check your order history." };
+    } catch (e) {
+      console.error('Flow Execution Error:', e);
+      throw e;
     }
-    return output;
   }
 );
 

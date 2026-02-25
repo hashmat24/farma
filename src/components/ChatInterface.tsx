@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -120,15 +119,15 @@ export function ChatInterface() {
   if (!mounted) return null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[80vh] min-h-0">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[75vh] min-h-0 overflow-hidden">
       {/* 1. Patient Context Panel */}
       <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col min-h-0">
-        <CardHeader className="pb-4 bg-slate-50/50 shrink-0">
+        <CardHeader className="pb-4 bg-slate-50/50 shrink-0 border-b">
           <CardTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
             <User className="h-5 w-5 text-primary" /> Patient Context
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6 pt-6 flex-1 overflow-y-auto min-h-0">
+        <CardContent className="space-y-6 pt-6 flex-1 overflow-y-auto min-h-0 scrollbar-none">
           {patientInfo ? (
             <>
               <div className="space-y-1">
@@ -144,7 +143,7 @@ export function ChatInterface() {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {patientInfo.history.map((h: string, i: number) => (
-                    <Badge key={i} variant="secondary" className="bg-slate-100 text-slate-600 border-none font-medium">
+                    <Badge key={i} variant="secondary" className="bg-slate-100 text-slate-600 border-none font-medium text-[10px]">
                       {h}
                     </Badge>
                   ))}
@@ -189,7 +188,7 @@ export function ChatInterface() {
               <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Live Healthcare Sync</p>
             </div>
           </div>
-          <Badge variant="outline" className="text-primary border-primary/20">Active Session</Badge>
+          <Badge variant="outline" className="text-primary border-primary/20 h-6 text-[10px]">Active Session</Badge>
         </div>
 
         <ScrollArea className="flex-1 min-h-0 bg-slate-50/30">
@@ -253,12 +252,12 @@ export function ChatInterface() {
 
       {/* 3. Reasoning & Agent Activity Panel */}
       <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col min-h-0">
-        <CardHeader className="pb-4 bg-slate-50/50 shrink-0">
+        <CardHeader className="pb-4 bg-slate-50/50 shrink-0 border-b">
           <CardTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
             <Activity className="h-5 w-5 text-indigo-500" /> Reasoning Chain
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 pt-6 flex-1 overflow-y-auto min-h-0">
+        <CardContent className="space-y-3 pt-6 flex-1 overflow-y-auto min-h-0 scrollbar-none">
           <div className="space-y-3">
             {reasoningSteps.map((step) => (
               <div key={step.id} className={cn(
