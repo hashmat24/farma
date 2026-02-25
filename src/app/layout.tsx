@@ -2,10 +2,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
+import { Navbar } from '@/components/Navbar';
 
 export const metadata: Metadata = {
-  title: 'CuraCare AI - Your Autonomous Pharmacist',
-  description: 'AI-powered prescription ordering and predictive refills.',
+  title: 'CuraCare AI - Agentic AI Pharmacy',
+  description: 'Intelligent healthcare management system powered by AI.',
 };
 
 export default function RootLayout({
@@ -21,7 +22,10 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased min-h-screen flex flex-col">
-        {children}
+        <Navbar />
+        <main className="flex-1 bg-slate-50/30">
+          {children}
+        </main>
         <Toaster />
       </body>
     </html>

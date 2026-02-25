@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -38,62 +39,17 @@ export function AdminDashboard({ data }: DashboardProps) {
     setMounted(true);
   }, []);
 
+  if (!mounted) return null;
+
   const formatDate = (dateStr: string) => {
-    if (!mounted) return "";
     return new Date(dateStr).toLocaleDateString();
   };
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-primary text-primary-foreground">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium opacity-80">Total Inventory</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center gap-2">
-              <Package className="h-6 w-6" /> {data.medicines.length} Items
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-destructive text-destructive-foreground">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium opacity-80">Low Stock Alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center gap-2">
-              <AlertTriangle className="h-6 w-6" /> {data.lowStock.length} Items
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-orange-500 text-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium opacity-80">Refill Alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center gap-2">
-              <Clock className="h-6 w-6" /> {data.refillAlerts.length} Active
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-accent text-accent-foreground">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium opacity-80">Total Orders</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center gap-2">
-              <ClipboardList className="h-6 w-6" /> {data.orders.length} Processed
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Inventory Table */}
-        <Card className="shadow-lg border-none">
+        <Card className="shadow-lg border-none bg-card/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" /> Inventory Status
@@ -106,27 +62,19 @@ export function AdminDashboard({ data }: DashboardProps) {
                 <TableRow>
                   <TableHead>Medicine</TableHead>
                   <TableHead>Stock</TableHead>
-                  <TableHead>Required Rx</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.medicines.map((m) => (
-                  <TableRow key={m.id} className={m.stock_qty < m.reorder_threshold ? "bg-red-50" : ""}>
-                    <TableCell className="font-medium">{m.name} <span className="text-xs text-muted-foreground ml-1">({m.dosage})</span></TableCell>
-                    <TableCell>{m.stock_qty}</TableCell>
-                    <TableCell>
-                      {m.prescription_required ? (
-                        <Badge variant="secondary">Yes</Badge>
-                      ) : (
-                        <Badge variant="outline">No</Badge>
-                      )}
-                    </TableCell>
+                  <TableRow key={m.id} className={m.stock_qty < m.reorder_threshold ? "bg-destructive/5" : ""}>
+                    <TableCell className="font-medium">{m.name}</TableCell>
+                    <TableCell>{m.stock_qty} {m.unit}</TableCell>
                     <TableCell>
                       {m.stock_qty <= 0 ? (
-                        <Badge variant="destructive">Out of Stock</Badge>
+                        <Badge variant="destructive">Out</Badge>
                       ) : m.stock_qty < m.reorder_threshold ? (
-                        <Badge className="bg-orange-500">Low Stock</Badge>
+                        <Badge className="bg-orange-500">Low</Badge>
                       ) : (
                         <Badge className="bg-green-600 text-white">Healthy</Badge>
                       )}
@@ -139,7 +87,7 @@ export function AdminDashboard({ data }: DashboardProps) {
         </Card>
 
         {/* Refill Alerts */}
-        <Card className="shadow-lg border-none">
+        <Card className="shadow-lg border-none bg-card/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-orange-600">
               <ArrowDownToLine className="h-5 w-5" /> Predictive Refill Alerts
@@ -150,26 +98,24 @@ export function AdminDashboard({ data }: DashboardProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Patient ID</TableHead>
+                  <TableHead>Patient</TableHead>
                   <TableHead>Medicine</TableHead>
                   <TableHead>Days Left</TableHead>
-                  <TableHead>Exhaustion</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.refillAlerts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground italic">
+                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground italic">
                       No critical refill alerts found
                     </TableCell>
                   </TableRow>
                 ) : (
                   data.refillAlerts.map((alert, i) => (
                     <TableRow key={i} className="bg-orange-50">
-                      <TableCell className="font-mono text-xs">{alert.patient_id}</TableCell>
+                      <TableCell className="font-medium">{alert.patient_name}</TableCell>
                       <TableCell>{alert.medicine_name}</TableCell>
                       <TableCell className="font-bold text-orange-700">{alert.days_left}d</TableCell>
-                      <TableCell>{formatDate(alert.exhaustion_date)}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -180,35 +126,33 @@ export function AdminDashboard({ data }: DashboardProps) {
       </div>
 
       {/* Order Log */}
-      <Card className="shadow-lg border-none">
+      <Card className="shadow-lg border-none bg-card/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-primary" /> Order History
+            <ClipboardList className="h-5 w-5 text-primary" /> Recent Transaction Log
           </CardTitle>
-          <CardDescription>Complete audit log of autonomous pharmacist transactions</CardDescription>
+          <CardDescription>Audit of autonomous pharmacist transactions</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Order ID</TableHead>
-                <TableHead>Patient</TableHead>
+                <TableHead>Patient ID</TableHead>
                 <TableHead>Medicine</TableHead>
-                <TableHead>Qty</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.orders.map((order) => (
+              {data.orders.slice(0, 5).map((order) => (
                 <TableRow key={order.id}>
-                  <TableCell className="font-mono text-xs">{order.id}</TableCell>
-                  <TableCell>{order.patient_id}</TableCell>
+                  <TableCell className="font-mono text-xs font-bold">{order.id}</TableCell>
+                  <TableCell className="font-mono text-xs">{order.patient_id}</TableCell>
                   <TableCell>{data.medicines.find(m => m.id === order.medicine_id)?.name}</TableCell>
-                  <TableCell>{order.qty}</TableCell>
                   <TableCell>{formatDate(order.date)}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1 text-green-600">
+                    <div className="flex items-center gap-1 text-green-600 text-xs font-bold uppercase">
                       <CheckCircle2 className="h-3 w-3" /> {order.status}
                     </div>
                   </TableCell>
