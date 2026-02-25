@@ -61,7 +61,6 @@ export function ChatInterface() {
 
   useEffect(() => {
     setMounted(true);
-    // Simulate loading a specific user (John Doe)
     getPatientInfo('patient123').then(setPatientInfo);
   }, []);
 
@@ -111,7 +110,8 @@ export function ChatInterface() {
         entities: result.entities
       }]);
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Pharmacy service offline.' });
+      console.error('Chat Error:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Pharmacy service offline. Please check connectivity.' });
     } finally {
       setIsLoading(false);
     }
