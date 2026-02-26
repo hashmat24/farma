@@ -123,7 +123,7 @@ const checkInventory = ai.defineTool(
 const createOrder = ai.defineTool(
   {
     name: 'create_order',
-    description: 'Creates a new order.',
+    description: 'Creates a new order in the pharmacy system.',
     inputSchema: z.object({ patient_id: z.string(), medicine_id: z.string(), qty: z.number(), trace_id: z.string() }),
     outputSchema: z.object({ order_id: z.string(), status: z.string() }),
   },
@@ -145,7 +145,7 @@ const createOrder = ai.defineTool(
 const updateInventory = ai.defineTool(
   {
     name: 'update_inventory',
-    description: 'Updates stock after order.',
+    description: 'Updates stock levels after a successful order.',
     inputSchema: z.object({ medicine_id: z.string(), qty_to_reduce: z.number() }),
     outputSchema: z.object({ new_stock_qty: z.number() }),
   },
@@ -155,26 +155,73 @@ const updateInventory = ai.defineTool(
   }
 );
 
+const triggerWarehouseWebhook = ai.defineTool(
+  {
+    name: 'trigger_warehouse_webhook',
+    description: 'Notifies the external warehouse system to begin fulfillment of a created order.',
+    inputSchema: z.object({ order_id: z.string(), priority: z.enum(['standard', 'urgent']) }),
+    outputSchema: z.object({ success: z.boolean(), message: z.string() }),
+  },
+  async (input) => {
+    // Simulated webhook call to our internal API
+    try {
+      // In a real scenario, this would be a fetch() call
+      console.log(`[AGENT] Triggering warehouse webhook for ${input.order_id}`);
+      return { success: true, message: `Warehouse notified with ${input.priority} priority.` };
+    } catch (e) {
+      return { success: false, message: 'Failed to notify warehouse.' };
+    }
+  }
+);
+
+const calculateRefillSchedule = ai.defineTool(
+  {
+    name: 'calculate_refill_schedule',
+    description: 'Predicts the next refill date for a patient based on their current supply and dosage.',
+    inputSchema: z.object({ patient_id: z.string(), medicine_id: z.string() }),
+    outputSchema: z.object({ predicted_date: z.string(), days_remaining: z.number() }),
+  },
+  async (input) => {
+    const alerts = db.calculateRefills(input.patient_id);
+    const alert = alerts.find(a => a.medicine_name.toLowerCase().includes(input.medicine_id.toLowerCase()));
+    return {
+      predicted_date: alert?.exhaustion_date || 'Unknown',
+      days_remaining: alert?.days_left || 0
+    };
+  }
+);
+
 // --- Prompt Definition ---
 const autonomousPharmacistPrompt = ai.definePrompt({
   name: 'autonomousPharmacistPrompt',
   model: 'googleai/gemini-1.5-flash',
   input: { schema: AutomatedPrescriptionOrderingInputSchema },
   output: { schema: AutonomousPharmacistOutputSchema },
-  tools: [getUserHistory, extractMedicineDetails, checkPrescription, checkInventory, createOrder, updateInventory],
-  system: `You are an autonomous AI pharmacist. Process medication requests from patients.
+  tools: [
+    getUserHistory, 
+    extractMedicineDetails, 
+    checkPrescription, 
+    checkInventory, 
+    createOrder, 
+    updateInventory, 
+    triggerWarehouseWebhook, 
+    calculateRefillSchedule
+  ],
+  system: `You are an autonomous AI pharmacist. Your goal is to manage medication requests with clinical precision.
   
-  Workflow:
-  1. Retrieve patient history using get_user_history to understand context.
-  2. Extract details from message.
-  3. Check prescription requirement.
-  4. Check inventory.
-  5. Create order if valid.
-  6. Update inventory.
+  MANDATORY PROTOCOL:
+  1. USER CONTEXT: Always call 'get_user_history' first to understand the patient's medical background.
+  2. EXTRACTION: Call 'extract_medicine_details' to parse the user's message.
+  3. VALIDATION: 
+     a. Call 'check_prescription'. If required but not on file, request it from the user.
+     b. Call 'check_inventory'. If out of stock, inform the user and suggest alternatives.
+  4. FULFILLMENT:
+     a. If validated, call 'create_order'.
+     b. Then call 'update_inventory'.
+     c. Finally call 'trigger_warehouse_webhook' to initiate dispatch.
+  5. PROACTIVE CARE: If the user asks about refills or you see a recurring medication, call 'calculate_refill_schedule'.
 
-  If a prescription is required but not provided in history or current message, ask for it.
-  If out of stock, inform the user.
-  Provide a final response as JSON matching the schema, including the detected_entities you found.`,
+  Never skip validation steps. Provide a final response in JSON format including the 'detected_entities'.`,
   prompt: `Patient ID: {{{patient_id}}}
   User message: {{{message}}}
   Trace ID: {{{trace_id}}}`,
