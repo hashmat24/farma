@@ -62,14 +62,12 @@ export function ChatInterface() {
 
   useEffect(() => {
     setMounted(true);
-    // Use logged in user ID or a fallback for the demo
     const effectiveId = user?.uid || 'patient123';
     
     getPatientInfo(effectiveId).then(info => {
       if (info) {
         setPatientInfo(info);
       } else if (user) {
-        // Use data from Firestore profile for new users
         setPatientInfo({ 
           name: userName || user?.email?.split('@')[0], 
           history: ['No clinical history on file'], 
@@ -123,7 +121,6 @@ export function ChatInterface() {
     setInput('');
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
-    // Maintain history for the AI
     const history = messages.map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       content: m.content
@@ -167,9 +164,9 @@ export function ChatInterface() {
   if (!mounted) return null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[75vh] min-h-0 overflow-hidden">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full lg:h-[calc(100vh-200px)] min-h-0 overflow-hidden lg:overflow-visible">
       {/* 1. Patient Context Panel */}
-      <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col min-h-0">
+      <Card className="order-2 lg:order-1 lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col min-h-[300px] lg:min-h-0">
         <CardHeader className="pb-4 bg-slate-50/50 shrink-0 border-b">
           <CardTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
             <User className="h-5 w-5 text-primary" /> Patient Context
@@ -233,7 +230,7 @@ export function ChatInterface() {
       </Card>
 
       {/* 2. Main Chat Window */}
-      <Card className="lg:col-span-6 flex flex-col border-none shadow-lg overflow-hidden bg-white min-h-0">
+      <Card className="order-1 lg:order-2 lg:col-span-6 flex flex-col border-none shadow-lg overflow-hidden bg-white h-[60vh] lg:h-full min-h-0">
         <div className="p-4 border-b bg-white flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-lg font-bold text-[#1E293B]">AI Pharmacist</h2>
@@ -246,11 +243,11 @@ export function ChatInterface() {
         </div>
 
         <ScrollArea className="flex-1 min-h-0 bg-slate-50/30">
-          <div className="p-6 space-y-6">
+          <div className="p-4 lg:p-6 space-y-6">
             {messages.map((msg, i) => (
               <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                 <div className={cn(
-                  "px-4 py-3 max-w-[85%] text-sm rounded-2xl shadow-sm",
+                  "px-4 py-3 max-w-[90%] lg:max-w-[85%] text-sm rounded-2xl shadow-sm",
                   msg.role === 'user' 
                     ? 'bg-[#4D67F6] text-white rounded-tr-none' 
                     : 'bg-white border border-slate-100 text-[#334155] rounded-tl-none'
@@ -305,7 +302,7 @@ export function ChatInterface() {
       </Card>
 
       {/* 3. Reasoning Panel */}
-      <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col min-h-0">
+      <Card className="order-3 lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col min-h-[300px] lg:min-h-0">
         <CardHeader className="pb-4 bg-slate-50/50 shrink-0 border-b">
           <CardTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
             <Activity className="h-5 w-5 text-indigo-500" /> Reasoning Chain
