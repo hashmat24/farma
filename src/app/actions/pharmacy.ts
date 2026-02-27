@@ -36,7 +36,7 @@ export async function getDashboardData() {
   };
 }
 
-export async function chatAction(patientId: string, message: string) {
+export async function chatAction(patientId: string, message: string, history: any[] = []) {
   const trace_id = `tr-${Date.now().toString().slice(-6)}`;
   const lowerMsg = message.toLowerCase();
   
@@ -62,6 +62,7 @@ export async function chatAction(patientId: string, message: string) {
     const result = await automatedPrescriptionOrdering({
       patient_id: patientId,
       message,
+      history,
       trace_id
     });
 

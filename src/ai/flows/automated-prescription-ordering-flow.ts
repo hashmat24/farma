@@ -2,10 +2,10 @@
 /**
  * @fileOverview This file implements the Genkit flow for the CuraCare AI autonomous digital pharmacist.
  * It orchestrates a suite of clinical tools via an AI agent to fulfill patient medication requests
- * according to a strict 8-point operational workflow.
+ * according to a strict 8-point operational workflow with conversation history support.
  *
  * - automatedPrescriptionOrdering - The main entry point for chat interactions.
- * - AutomatedPrescriptionOrderingInput - User message and patient context.
+ * - AutomatedPrescriptionOrderingInput - User message, history, and patient context.
  * - AutonomousPharmacistOutput - Structured AI response and order metadata.
  */
 
@@ -15,9 +15,15 @@ import { db } from '@/app/lib/db';
 
 // --- Schema Definitions ---
 
+const MessageSchema = z.object({
+  role: z.enum(['user', 'model', 'system']),
+  content: z.string(),
+});
+
 const AutomatedPrescriptionOrderingInputSchema = z.object({
   patient_id: z.string().describe('The ID of the patient making the request.'),
   message: z.string().describe('The natural language request (symptoms or medication).'),
+  history: z.array(MessageSchema).optional().describe('The conversation history.'),
   trace_id: z.string().describe('A unique identifier for the current trace/session.'),
 });
 export type AutomatedPrescriptionOrderingInput = z.infer<typeof AutomatedPrescriptionOrderingInputSchema>;
@@ -238,7 +244,7 @@ const autonomousPharmacistPrompt = ai.definePrompt({
   ],
   system: `You are CuraCare AI — an autonomous digital pharmacist. You are NOT a generic chatbot. You are a real-time pharmacy operations agent.
 
-You must follow this STRICT OPERATIONAL WORKFLOW for every conversation.
+You must follow this STRICT OPERATIONAL WORKFLOW for every conversation. Use conversation history to maintain context.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1️⃣ SYMPTOM-BASED MEDICINE RECOMMENDATION
@@ -285,7 +291,7 @@ Inform user: "Inventory has been updated and your order is being prepared."
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 5️⃣ INVENTORY & ADMIN SYNC
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-'create_order' automatically decrements stock, saves the order, and logs the trace. Admin dashboards reflect this in real-time. You do NOT need to mention admin internally.
+'create_order' automatically decrements stock, saves the order, and logs the trace. Admin dashboards reflect this in real-time.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 6️⃣ REFILL INTELLIGENCE
@@ -306,13 +312,18 @@ Explain politely and clearly.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 8️⃣ RESPONSE STYLE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Be professional and proactive.
-• Avoid generic system messages. Do not say "I'm connected to the system."
+• Be professional, empathetic, and proactive.
+• Avoid generic system messages.
 • Act like a clinical pharmacist assistant.
 • Your job is: Understand → Validate → Confirm → Execute → Inform.`,
   prompt: `Patient ID: {{{patient_id}}}
 User message: {{{message}}}
-Trace ID: {{{trace_id}}}`,
+Trace ID: {{{trace_id}}}
+
+Conversation History:
+{{#each history}}
+{{role}}: {{content}}
+{{/each}}`,
 });
 
 // --- Main Flow Definition ---

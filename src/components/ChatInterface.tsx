@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -98,7 +97,7 @@ export function ChatInterface() {
     for (let i = 0; i < 3; i++) {
       steps[i].status = 'loading';
       setReasoningSteps([...steps]);
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 600));
       steps[i].status = 'completed';
       setReasoningSteps([...steps]);
     }
@@ -112,7 +111,7 @@ export function ChatInterface() {
     steps[3].status = 'completed';
     steps[4].status = 'loading';
     setReasoningSteps([...steps]);
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 400));
     steps[4].status = 'completed';
     setReasoningSteps([...steps]);
   };
@@ -123,20 +122,30 @@ export function ChatInterface() {
     const userMsg = input;
     setInput('');
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Maintain history for the AI
+    const history = messages.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      content: m.content
+    }));
+
     setMessages(prev => [...prev, { role: 'user', content: userMsg, timestamp }]);
     setIsLoading(true);
 
     try {
       runReasoningAnimation();
 
-      const result = await chatAction(user?.uid || 'patient123', userMsg);
+      const result = await chatAction(user?.uid || 'patient123', userMsg, history);
       
       await finishReasoningAnimation();
 
       const assistantTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
       if (result.entities) {
-        setActiveEntities(result.entities);
+        setActiveEntities(prev => ({
+          ...prev,
+          ...result.entities
+        }));
       }
 
       setMessages(prev => [...prev, { 
@@ -204,6 +213,12 @@ export function ChatInterface() {
                     <p className="text-[10px] text-slate-400 font-bold uppercase">Dosage</p>
                     <div className="px-3 py-1.5 rounded-lg bg-[#F0FDF4] border border-[#DCFCE7] text-[#166534] font-bold text-xs truncate">
                       {activeEntities?.dosage || <span className="opacity-40 italic">Waiting...</span>}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Quantity</p>
+                    <div className="px-3 py-1.5 rounded-lg bg-[#FFF7ED] border border-[#FFEDD5] text-[#9A3412] font-bold text-xs truncate">
+                      {activeEntities?.qty || <span className="opacity-40 italic">Waiting...</span>}
                     </div>
                   </div>
                 </div>
