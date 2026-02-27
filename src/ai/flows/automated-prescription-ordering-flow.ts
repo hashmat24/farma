@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview This file implements the Genkit flow for automated prescription ordering.
@@ -15,7 +16,7 @@ import { db } from '@/app/lib/db';
 // Input Schema for the main flow
 const AutomatedPrescriptionOrderingInputSchema = z.object({
   patient_id: z.string().describe('The ID of the patient making the request.'),
-  message: z.string().describe('The natural language request from the patient for medication.'),
+  message: z.string().describe('The natural language request from the patient for medication or symptoms.'),
   trace_id: z.string().describe('A unique identifier for the current trace/session.'),
 });
 export type AutomatedPrescriptionOrderingInput = z.infer<typeof AutomatedPrescriptionOrderingInputSchema>;
@@ -34,6 +35,35 @@ const AutonomousPharmacistOutputSchema = z.object({
 export type AutonomousPharmacistOutput = z.infer<typeof AutonomousPharmacistOutputSchema>;
 
 // --- Tool Definitions ---
+
+const searchMedicine = ai.defineTool(
+  {
+    name: 'search_medicine',
+    description: 'Searches for medicines in the inventory based on symptoms, category, or name.',
+    inputSchema: z.object({ query: z.string().describe('Symptoms or keywords to search for.') }),
+    outputSchema: z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+      category: z.string(),
+      price: z.number(),
+      stock: z.number(),
+      prescription_required: z.boolean(),
+      description: z.string(),
+    })),
+  },
+  async (input) => {
+    const results = db.searchMedicines(input.query);
+    return results.map(m => ({
+      id: m.id,
+      name: m.name,
+      category: m.category,
+      price: m.unit_price,
+      stock: m.stock_qty,
+      prescription_required: m.prescription_required,
+      description: m.description,
+    }));
+  }
+);
 
 const getUserHistory = ai.defineTool(
   {
@@ -93,30 +123,26 @@ const extractMedicineDetails = ai.defineTool(
   }
 );
 
-const checkPrescription = ai.defineTool(
-  {
-    name: 'check_prescription',
-    description: 'Checks if a prescription is required for a medicine.',
-    inputSchema: z.object({ medicine_id: z.string() }),
-    outputSchema: z.object({ prescription_required: z.boolean() }),
-  },
-  async (input) => {
-    const med = db.getMedicine(input.medicine_id);
-    return { prescription_required: med?.prescription_required || false };
-  }
-);
-
 const checkInventory = ai.defineTool(
   {
     name: 'check_inventory',
-    description: 'Checks stock for a medicine.',
+    description: 'Checks stock and prescription requirements for a medicine.',
     inputSchema: z.object({ medicine_id: z.string() }),
-    outputSchema: z.object({ stock_qty: z.number(), available: z.boolean() }),
+    outputSchema: z.object({ 
+      stock_qty: z.number(), 
+      available: z.boolean(), 
+      prescription_required: z.boolean(),
+      price: z.number()
+    }),
   },
   async (input) => {
     const med = db.getMedicine(input.medicine_id);
-    const stock_qty = med?.stock_qty || 0;
-    return { stock_qty, available: stock_qty > 0 };
+    return { 
+      stock_qty: med?.stock_qty || 0, 
+      available: (med?.stock_qty || 0) > 0,
+      prescription_required: med?.prescription_required || false,
+      price: med?.unit_price || 0
+    };
   }
 );
 
@@ -125,33 +151,40 @@ const createOrder = ai.defineTool(
     name: 'create_order',
     description: 'Creates a new order in the pharmacy system.',
     inputSchema: z.object({ patient_id: z.string(), medicine_id: z.string(), qty: z.number(), trace_id: z.string() }),
-    outputSchema: z.object({ order_id: z.string(), status: z.string() }),
+    outputSchema: z.object({ 
+      order_id: z.string(), 
+      status: z.string(), 
+      total_price: z.number(),
+      medicine_name: z.string(),
+      estimated_delivery: z.string()
+    }),
   },
   async (input) => {
+    const med = db.getMedicine(input.medicine_id);
     const orderId = `ORD-${Date.now()}`;
+    const totalPrice = (med?.unit_price || 0) * input.qty;
+    
     db.addOrder({
       id: orderId,
       patient_id: input.patient_id,
       medicine_id: input.medicine_id,
       qty: input.qty,
       date: new Date().toISOString(),
-      status: 'pending',
-      trace_id: input.trace_id
+      status: 'processing',
+      trace_id: input.trace_id,
+      total_price: totalPrice
     });
-    return { order_id: orderId, status: 'created' };
-  }
-);
+    
+    // Auto update stock
+    db.updateStock(input.medicine_id, input.qty);
 
-const updateInventory = ai.defineTool(
-  {
-    name: 'update_inventory',
-    description: 'Updates stock levels after a successful order.',
-    inputSchema: z.object({ medicine_id: z.string(), qty_to_reduce: z.number() }),
-    outputSchema: z.object({ new_stock_qty: z.number() }),
-  },
-  async (input) => {
-    const newQty = db.updateStock(input.medicine_id, input.qty_to_reduce);
-    return { new_stock_qty: newQty || 0 };
+    return { 
+      order_id: orderId, 
+      status: 'Processing', 
+      total_price: totalPrice,
+      medicine_name: med?.name || 'Unknown',
+      estimated_delivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString()
+    };
   }
 );
 
@@ -163,14 +196,8 @@ const triggerWarehouseWebhook = ai.defineTool(
     outputSchema: z.object({ success: z.boolean(), message: z.string() }),
   },
   async (input) => {
-    // Simulated webhook call to our internal API
-    try {
-      // In a real scenario, this would be a fetch() call
-      console.log(`[AGENT] Triggering warehouse webhook for ${input.order_id}`);
-      return { success: true, message: `Warehouse notified with ${input.priority} priority.` };
-    } catch (e) {
-      return { success: false, message: 'Failed to notify warehouse.' };
-    }
+    console.log(`[AGENT] Triggering warehouse webhook for ${input.order_id}`);
+    return { success: true, message: `Warehouse notified with ${input.priority} priority.` };
   }
 );
 
@@ -183,7 +210,8 @@ const calculateRefillSchedule = ai.defineTool(
   },
   async (input) => {
     const alerts = db.calculateRefills(input.patient_id);
-    const alert = alerts.find(a => a.medicine_name.toLowerCase().includes(input.medicine_id.toLowerCase()));
+    const med = db.getMedicine(input.medicine_id);
+    const alert = alerts.find(a => a.medicine_name.toLowerCase().includes((med?.name || '').toLowerCase()));
     return {
       predicted_date: alert?.exhaustion_date || 'Unknown',
       days_remaining: alert?.days_left || 0
@@ -199,32 +227,54 @@ const autonomousPharmacistPrompt = ai.definePrompt({
   output: { schema: AutonomousPharmacistOutputSchema },
   tools: [
     getUserHistory, 
+    searchMedicine,
     extractMedicineDetails, 
-    checkPrescription, 
     checkInventory, 
     createOrder, 
-    updateInventory, 
     triggerWarehouseWebhook, 
     calculateRefillSchedule
   ],
-  system: `You are an autonomous AI pharmacist. Your goal is to manage medication requests with clinical precision.
-  
-  MANDATORY PROTOCOL:
-  1. USER CONTEXT: Always call 'get_user_history' first to understand the patient's medical background.
-  2. EXTRACTION: Call 'extract_medicine_details' to parse the user's message.
-  3. VALIDATION: 
-     a. Call 'check_prescription'. If required but not on file, request it from the user.
-     b. Call 'check_inventory'. If out of stock, inform the user and suggest alternatives.
-  4. FULFILLMENT:
-     a. If validated, call 'create_order'.
-     b. Then call 'update_inventory'.
-     c. Finally call 'trigger_warehouse_webhook' to initiate dispatch.
-  5. PROACTIVE CARE: If the user asks about refills or you see a recurring medication, call 'calculate_refill_schedule'.
+  system: `You are CuraCare AI — an autonomous digital pharmacist. You must follow the MANDATORY CLINICAL WORKFLOW for every conversation.
 
-  Never skip validation steps. Provide a final response in JSON format including the 'detected_entities'.`,
+1. SYMPTOM UNDERSTANDING:
+   - If the user describes symptoms (e.g., headache, cold, fever, stomach pain):
+     - Automatically call 'search_medicine' tool.
+     - Identify appropriate OTC medicines from inventory.
+     - Suggest 1–2 relevant options clearly with price and availability.
+     - Do NOT ask the user to name a medicine if they only describe symptoms.
+
+2. PRESCRIPTION CHECK:
+   - Before placing any order, always call 'check_inventory'.
+   - If prescription_required = true:
+     - Inform user that this medicine requires a valid prescription.
+     - Ask user to confirm prescription availability.
+     - If not confirmed, DO NOT create the order.
+
+3. ORDER CONFIRMATION FLOW:
+   - If the medicine is OTC or a confirmed prescription:
+     - Ask: "How many units would you like?"
+     - Wait for user confirmation (e.g., "3 tablets", "yes", "confirm").
+     - ONLY after explicit confirmation, call 'create_order'.
+
+4. AFTER ORDER CREATION:
+   - After 'create_order' succeeds, summarize the order:
+     - Order ID, Medicine Name, Quantity, Total Price.
+     - Estimated delivery date (2-3 business days).
+     - Shipping status (Processing).
+     - Inform user that inventory has been updated.
+   - Call 'trigger_warehouse_webhook'.
+   - Call 'calculate_refill_schedule' and inform the user when they will need a refill.
+
+SAFETY RULES:
+- NEVER create order without confirmation.
+- NEVER bypass prescription check.
+- NEVER assume dosage.
+- ALWAYS verify stock.
+
+Response Style: Proactive and clinical. You are an execution agent, not just a chatbot.`,
   prompt: `Patient ID: {{{patient_id}}}
-  User message: {{{message}}}
-  Trace ID: {{{trace_id}}}`,
+User message: {{{message}}}
+Trace ID: {{{trace_id}}}`,
 });
 
 // --- Main Flow Definition ---
@@ -237,7 +287,7 @@ const automatedPrescriptionOrderingFlow = ai.defineFlow(
   async (input) => {
     try {
       const { output } = await autonomousPharmacistPrompt(input);
-      return output || { response: "I processed your request, but I couldn't generate a clear confirmation. Please check your order history." };
+      return output || { response: "I've analyzed your request but encountered an internal step issue. Please clarify your medication request." };
     } catch (e) {
       console.error('Flow Execution Error:', e);
       throw e;
