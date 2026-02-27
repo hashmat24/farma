@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -53,6 +52,9 @@ export interface UserHookResult {
 
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
+// PREDEFINED ADMIN CONSTANTS
+const ADMIN_EMAIL = 'admin@curacare.com';
+
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   children,
   firebaseApp,
@@ -82,10 +84,23 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
             
             let role: 'user' | 'admin' = 'user';
             
-            if (userDoc.exists()) {
+            // Check for predefined admin email
+            if (firebaseUser.email === ADMIN_EMAIL) {
+              role = 'admin';
+              // Ensure admin document exists with correct role
+              if (!userDoc.exists() || userDoc.data().role !== 'admin') {
+                await setDoc(userDocRef, {
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email,
+                  name: 'Admin',
+                  role: 'admin',
+                  createdAt: new Date().toISOString()
+                }, { merge: true });
+              }
+            } else if (userDoc.exists()) {
               role = userDoc.data().role || 'user';
             } else {
-              // Create default profile for new signups if not exists (though usually handled in signup)
+              // Create default profile for new signups if not exists
               await setDoc(userDocRef, {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,

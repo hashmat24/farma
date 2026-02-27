@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect } from 'react';
@@ -20,12 +19,35 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const isPublicPath = PUBLIC_PATHS.includes(pathname);
     const isAdminPath = ADMIN_PATHS.some(path => pathname.startsWith(path));
 
+    // Not logged in -> redirect to login if not on a public path
     if (!user && !isPublicPath) {
       router.replace('/login');
-    } else if (user && isPublicPath) {
+      return;
+    }
+
+    // Logged in on public path -> redirect to main app
+    if (user && isPublicPath) {
+      if (role === 'admin') {
+        router.replace('/admin');
+      } else {
+        router.replace('/chat');
+      }
+      return;
+    }
+
+    // Logged in as user on admin path -> redirect to chat
+    if (user && role === 'user' && (isAdminPath || pathname === '/admin')) {
       router.replace('/chat');
-    } else if (user && role === 'user' && isAdminPath) {
-      router.replace('/chat');
+      return;
+    }
+
+    // Default redirect for root
+    if (user && pathname === '/') {
+      if (role === 'admin') {
+        router.replace('/admin');
+      } else {
+        router.replace('/chat');
+      }
     }
   }, [user, role, isUserLoading, pathname, router]);
 
