@@ -1,29 +1,29 @@
-
 'use server';
 /**
- * @fileOverview This file implements the Genkit flow for automated prescription ordering.
- * It orchestrates tools via an AI agent to fulfill patient medication requests.
+ * @fileOverview This file implements the Genkit flow for the CuraCare AI autonomous digital pharmacist.
+ * It orchestrates a suite of clinical tools via an AI agent to fulfill patient medication requests
+ * according to a strict 8-point operational workflow.
  *
- * - automatedPrescriptionOrdering - The wrapper function for the flow.
- * - AutomatedPrescriptionOrderingInput - The input type for the flow.
- * - AutonomousPharmacistOutput - The output type for the flow.
+ * - automatedPrescriptionOrdering - The main entry point for chat interactions.
+ * - AutomatedPrescriptionOrderingInput - User message and patient context.
+ * - AutonomousPharmacistOutput - Structured AI response and order metadata.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { db } from '@/app/lib/db';
 
-// Input Schema for the main flow
+// --- Schema Definitions ---
+
 const AutomatedPrescriptionOrderingInputSchema = z.object({
   patient_id: z.string().describe('The ID of the patient making the request.'),
-  message: z.string().describe('The natural language request from the patient for medication or symptoms.'),
+  message: z.string().describe('The natural language request (symptoms or medication).'),
   trace_id: z.string().describe('A unique identifier for the current trace/session.'),
 });
 export type AutomatedPrescriptionOrderingInput = z.infer<typeof AutomatedPrescriptionOrderingInputSchema>;
 
-// Output Schema for the main flow
 const AutonomousPharmacistOutputSchema = z.object({
-  response: z.string().describe('The AI pharmacist\'s response to the patient.'),
+  response: z.string().describe('The AI pharmacist\'s professional response.'),
   order_id: z.string().optional().describe('The ID of the created order, if successful.'),
   detected_entities: z.object({
     medicineName: z.string().optional(),
@@ -39,7 +39,7 @@ export type AutonomousPharmacistOutput = z.infer<typeof AutonomousPharmacistOutp
 const searchMedicine = ai.defineTool(
   {
     name: 'search_medicine',
-    description: 'Searches for medicines in the inventory based on symptoms, category, or name.',
+    description: 'Searches for medicines in the inventory based on symptoms, category, or keywords.',
     inputSchema: z.object({ query: z.string().describe('Symptoms or keywords to search for.') }),
     outputSchema: z.array(z.object({
       id: z.string(),
@@ -70,7 +70,7 @@ const searchMedicine = ai.defineTool(
 const getUserHistory = ai.defineTool(
   {
     name: 'get_user_history',
-    description: 'Retrieves the medication history and clinical background for a specific patient.',
+    description: 'Retrieves the clinical background and previous orders for a specific patient.',
     inputSchema: z.object({ patient_id: z.string() }),
     outputSchema: z.object({
       name: z.string(),
@@ -92,7 +92,7 @@ const getUserHistory = ai.defineTool(
 const extractMedicineDetails = ai.defineTool(
   {
     name: 'extract_medicine_details',
-    description: 'Extracts medicine name, ID, quantity, and dosage from a natural language request.',
+    description: 'Extracts specific medicine names, IDs, quantities, and dosages from text.',
     inputSchema: z.object({ raw_text: z.string() }),
     outputSchema: z.object({
       medicine_name: z.string().optional(),
@@ -118,17 +118,22 @@ const extractMedicineDetails = ai.defineTool(
       }
     }
 
-    const qtyMatch = lowerText.match(/(\d+)\s*(pill|tablet|capsule|item|unit)s?/);
+    const qtyMatch = lowerText.match(/(\d+)\s*(pill|tablet|capsule|item|unit|pack)s?/);
     const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : undefined;
 
-    return { medicine_name: medicine_name || undefined, medicine_id: medicine_id || undefined, qty, dosage: dosage || undefined };
+    return { 
+      medicine_name: medicine_name || undefined, 
+      medicine_id: medicine_id || undefined, 
+      qty, 
+      dosage: dosage || undefined 
+    };
   }
 );
 
 const checkInventory = ai.defineTool(
   {
     name: 'check_inventory',
-    description: 'Checks stock and prescription requirements for a medicine.',
+    description: 'Checks real-time stock and prescription status for a specific medicine.',
     inputSchema: z.object({ medicine_id: z.string() }),
     outputSchema: z.object({ 
       stock_qty: z.number(), 
@@ -151,8 +156,13 @@ const checkInventory = ai.defineTool(
 const createOrder = ai.defineTool(
   {
     name: 'create_order',
-    description: 'Creates a new order in the pharmacy system.',
-    inputSchema: z.object({ patient_id: z.string(), medicine_id: z.string(), qty: z.number(), trace_id: z.string() }),
+    description: 'Finalizes a pharmaceutical order and updates inventory.',
+    inputSchema: z.object({ 
+      patient_id: z.string(), 
+      medicine_id: z.string(), 
+      qty: z.number(), 
+      trace_id: z.string() 
+    }),
     outputSchema: z.object({ 
       order_id: z.string(), 
       status: z.string(), 
@@ -178,7 +188,6 @@ const createOrder = ai.defineTool(
       total_price: totalPrice
     });
     
-    // Auto update stock
     db.updateStock(input.medicine_id, input.qty);
 
     return { 
@@ -187,28 +196,17 @@ const createOrder = ai.defineTool(
       total_price: totalPrice,
       medicine_name: med?.name || 'Unknown',
       quantity: input.qty,
-      estimated_delivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString()
+      estimated_delivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
+        month: 'long', day: 'numeric', year: 'numeric'
+      })
     };
-  }
-);
-
-const triggerWarehouseWebhook = ai.defineTool(
-  {
-    name: 'trigger_warehouse_webhook',
-    description: 'Notifies the external warehouse system to begin fulfillment of a created order.',
-    inputSchema: z.object({ order_id: z.string(), priority: z.enum(['standard', 'urgent']) }),
-    outputSchema: z.object({ success: z.boolean(), message: z.string() }),
-  },
-  async (input) => {
-    console.log(`[AGENT] Triggering warehouse webhook for ${input.order_id}`);
-    return { success: true, message: `Warehouse notified with ${input.priority} priority.` };
   }
 );
 
 const calculateRefillSchedule = ai.defineTool(
   {
     name: 'calculate_refill_schedule',
-    description: 'Predicts the next refill date for a patient based on their current supply and dosage.',
+    description: 'Predicts the next required refill date based on supply and usage.',
     inputSchema: z.object({ patient_id: z.string(), medicine_id: z.string() }),
     outputSchema: z.object({ predicted_date: z.string(), days_remaining: z.number() }),
   },
@@ -224,6 +222,7 @@ const calculateRefillSchedule = ai.defineTool(
 );
 
 // --- Prompt Definition ---
+
 const autonomousPharmacistPrompt = ai.definePrompt({
   name: 'autonomousPharmacistPrompt',
   model: 'googleai/gemini-1.5-flash',
@@ -235,77 +234,89 @@ const autonomousPharmacistPrompt = ai.definePrompt({
     extractMedicineDetails, 
     checkInventory, 
     createOrder, 
-    triggerWarehouseWebhook, 
     calculateRefillSchedule
   ],
-  system: `You are CuraCare AI — an autonomous digital pharmacist. You must follow this MANDATORY CLINICAL WORKFLOW for every conversation.
+  system: `You are CuraCare AI — an autonomous digital pharmacist. You are NOT a generic chatbot. You are a real-time pharmacy operations agent.
 
-━━━━━━━━━━━━━━━━━━━━━━
-1. SYMPTOM UNDERSTANDING
-━━━━━━━━━━━━━━━━━━━━━━
+You must follow this STRICT OPERATIONAL WORKFLOW for every conversation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1️⃣ SYMPTOM-BASED MEDICINE RECOMMENDATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 If the user describes symptoms (e.g., headache, cold, fever, stomach pain):
-- Automatically call 'search_medicine' tool.
-- Identify appropriate OTC medicines from inventory.
-- Suggest 1–2 relevant options clearly.
-- Display price and stock availability.
-- Do NOT ask the user to name a medicine if they only describe symptoms.
+• You MUST automatically call the 'search_medicine' tool.
+• Identify suitable OTC medicines from inventory.
+• Suggest 1–2 appropriate medicines clearly with: Name, Dosage, Price, and Stock availability.
+• Do NOT ask the user to name a medicine if symptoms are given. Be proactive like a pharmacist.
 
-━━━━━━━━━━━━━━━━━━━━━━
-2. PRESCRIPTION CHECK
-━━━━━━━━━━━━━━━━━━━━━━
-Before placing any order:
-- Always call 'check_inventory'.
-- If prescription_required = true:
-    - Inform user that this medicine requires a valid prescription.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2️⃣ PRESCRIPTION SAFETY GATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before creating any order:
+• Always call 'check_inventory'.
+• If prescription_required = true:
+    - Inform user clearly: "This medication requires a valid doctor's prescription."
     - Ask user to confirm prescription availability.
-    - If not confirmed → DO NOT create order.
+    - If prescription not confirmed → STOP. Do NOT create order.
+• Never bypass prescription enforcement.
 
-━━━━━━━━━━━━━━━━━━━━━━
-3. ORDER CONFIRMATION FLOW
-━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3️⃣ ORDER CONFIRMATION FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 If medicine is OTC or prescription confirmed:
-- Ask: "How many units would you like?"
-- Wait for user confirmation.
-- Only after explicit confirmation (yes, confirm, order it):
-    → Call 'create_order' tool.
+• Ask: "How many units would you like to order?"
+• Wait for explicit confirmation words (yes, confirm, proceed, order it).
+• Only after explicit confirmation: → Call 'create_order' tool.
+• Never create an order automatically.
 
-━━━━━━━━━━━━━━━━━━━━━━
-4. AFTER ORDER CREATION
-━━━━━━━━━━━━━━━━━━━━━━
-After successful 'create_order':
-- Display:
-    - Order ID
-    - Medicine name
-    - Quantity
-    - Total price
-    - Estimated delivery date (2-3 business days)
-    - Shipping status (Processing / Shipped)
-- Inform user that inventory has been updated.
-- Call 'trigger_warehouse_webhook'.
-- Call 'calculate_refill_schedule' and inform user when refill reminder will trigger.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4️⃣ AFTER SUCCESSFUL ORDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Once 'create_order' succeeds, you MUST display clearly:
+• Order ID
+• Medicine name
+• Quantity
+• Total price
+• Estimated delivery (2–3 business days)
+• Current status: Processing
+• Trace ID (if available)
+Inform user: "Inventory has been updated and your order is being prepared."
 
-━━━━━━━━━━━━━━━━━━━━━━
-5. SAFETY RULES
-━━━━━━━━━━━━━━━━━━━━━━
-- NEVER create order without confirmation.
-- NEVER bypass prescription check.
-- NEVER assume dosage if not available.
-- Always verify stock before confirming.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5️⃣ INVENTORY & ADMIN SYNC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+'create_order' automatically decrements stock, saves the order, and logs the trace. Admin dashboards reflect this in real-time. You do NOT need to mention admin internally.
 
-━━━━━━━━━━━━━━━━━━━━━━
-6. RESPONSE STYLE
-━━━━━━━━━━━━━━━━━━━━━━
-- Be proactive.
-- Act like a pharmacist.
-- If symptom-based request: Suggest medicine first.
-- Do not respond with generic system messages.
-- You are not a chatbot. You are an autonomous pharmacy execution agent.`,
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6️⃣ REFILL INTELLIGENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+After order creation:
+• Call 'calculate_refill_schedule'.
+• Inform user: "I will remind you when your refill is due."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7️⃣ REJECTION RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You must refuse the order if:
+• Prescription required and not confirmed.
+• Stock unavailable.
+• Medicine not found.
+Explain politely and clearly.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8️⃣ RESPONSE STYLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Be professional and proactive.
+• Avoid generic system messages. Do not say "I'm connected to the system."
+• Act like a clinical pharmacist assistant.
+• Your job is: Understand → Validate → Confirm → Execute → Inform.`,
   prompt: `Patient ID: {{{patient_id}}}
 User message: {{{message}}}
 Trace ID: {{{trace_id}}}`,
 });
 
 // --- Main Flow Definition ---
+
 const automatedPrescriptionOrderingFlow = ai.defineFlow(
   {
     name: 'automatedPrescriptionOrderingFlow',
@@ -315,7 +326,9 @@ const automatedPrescriptionOrderingFlow = ai.defineFlow(
   async (input) => {
     try {
       const { output } = await autonomousPharmacistPrompt(input);
-      return output || { response: "I've analyzed your request but encountered an internal step issue. Please clarify your medication request." };
+      return output || { 
+        response: "I've analyzed your request but I need more specific details to proceed with clinical validation. Could you please clarify your medicine name or symptoms?" 
+      };
     } catch (e) {
       console.error('Flow Execution Error:', e);
       throw e;

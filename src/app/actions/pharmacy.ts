@@ -1,4 +1,3 @@
-
 'use server';
 
 import { db } from '@/app/lib/db';
@@ -25,6 +24,7 @@ export async function getDashboardData() {
   const medicines = db.getMedicines();
   const lowStock = medicines.filter(m => m.stock_qty < m.reorder_threshold);
   const orders = db.getOrders();
+  // For demo purposes, we check these known patient IDs
   const patients = ['patient123', 'patient456']; 
   const refillAlerts = patients.flatMap(p => db.calculateRefills(p)).filter(a => a.alert);
   
@@ -37,18 +37,17 @@ export async function getDashboardData() {
 }
 
 export async function chatAction(patientId: string, message: string) {
-  const trace_id = `tr-${Date.now()}`;
+  const trace_id = `tr-${Date.now().toString().slice(-6)}`;
   const lowerMsg = message.toLowerCase();
   
   try {
-    // 1. Route to Refill Flow if it sounds like a query about timing/status
-    if (lowerMsg.includes('refill') || lowerMsg.includes('when') || lowerMsg.includes('due') || lowerMsg.includes('many days')) {
+    // 1. Route to Refill Flow if it specifically sounds like an inquiry about timing/exhaustion
+    if (lowerMsg.includes('when') && (lowerMsg.includes('due') || lowerMsg.includes('refill') || lowerMsg.includes('exhaust'))) {
       const response = await aiPoweredPredictiveRefillInquiry({
         patientId,
         medicineName: message 
       });
       
-      // Extract medicine name for the UI panel even in refill flow
       const medicines = db.getMedicines();
       const detectedMed = medicines.find(m => lowerMsg.includes(m.name.toLowerCase()));
 
@@ -59,7 +58,7 @@ export async function chatAction(patientId: string, message: string) {
       };
     } 
     
-    // 2. Automated Ordering / General Clinical Chat
+    // 2. Automated Ordering / General Clinical Chat (The primary autonomous agent)
     const result = await automatedPrescriptionOrdering({
       patient_id: patientId,
       message,
@@ -76,7 +75,7 @@ export async function chatAction(patientId: string, message: string) {
   } catch (error: any) {
     console.error('Chat Action Error:', error);
     
-    // Intelligent fallback for prototype stability
+    // Robust fallback logic for prototype stability
     const medicines = db.getMedicines();
     const matchedMed = medicines.find(m => lowerMsg.includes(m.name.toLowerCase()));
 
@@ -84,15 +83,15 @@ export async function chatAction(patientId: string, message: string) {
       const isOTC = !matchedMed.prescription_required;
       return {
         response: isOTC 
-          ? `I've analyzed your request for ${matchedMed.name}. As this is an Over-The-Counter medication and we have it in stock (${matchedMed.stock_qty} ${matchedMed.unit}), I can proceed with an order. Would you like me to add it to your cart?`
-          : `I see you're asking about ${matchedMed.name}. This medication requires a prescription. I'm checking your history now... I see an active prescription on file. Shall I process a refill for you?`,
+          ? `I've analyzed your request for ${matchedMed.name}. As this is an Over-The-Counter medication and we have it in stock (${matchedMed.stock_qty} ${matchedMed.unit}), I can proceed with an order. How many units would you like?`
+          : `I see you're asking about ${matchedMed.name}. This medication requires a prescription. Do you have a valid doctor's prescription on file?`,
         trace_url: null,
         entities: { medicineName: matchedMed.name, dosage: matchedMed.dosage, qty: matchedMed.stock_qty > 0 ? '1' : '0' }
       };
     }
 
     return {
-      response: "I'm connected to the pharmacy systems and ready to help. Could you please tell me which medication you are inquiring about? I can check your history, verify stock, or process a new order for you.",
+      response: "I am ready to assist you. Are you looking for a specific medication, or would you like me to recommend something based on your symptoms?",
       trace_url: null
     };
   }
