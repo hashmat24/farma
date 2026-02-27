@@ -19,7 +19,7 @@ import {
 
 export function Navbar() {
   const pathname = usePathname();
-  const { user, role } = useUser();
+  const { user, role, name } = useUser();
   const logout = useLogout();
 
   // If on login/signup, don't show the full navbar
@@ -62,7 +62,7 @@ export function Navbar() {
         
         <div className="flex items-center gap-4">
           <div className="text-right hidden sm:block">
-            <p className="text-sm font-bold text-[#1E293B]">{user?.email?.split('@')[0]}</p>
+            <p className="text-sm font-bold text-[#1E293B]">{name || user?.email?.split('@')[0]}</p>
             <div className="flex items-center justify-end gap-1">
               {role === 'admin' && <ShieldAlert className="h-3 w-3 text-amber-500" />}
               <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -17,6 +18,8 @@ interface FirebaseProviderProps {
 interface UserAuthState {
   user: User | null;
   role: 'user' | 'admin' | null;
+  name: string | null;
+  age: number | null;
   isUserLoading: boolean;
   userError: Error | null;
 }
@@ -29,6 +32,8 @@ export interface FirebaseContextState {
   auth: Auth | null;
   user: User | null;
   role: 'user' | 'admin' | null;
+  name: string | null;
+  age: number | null;
   isUserLoading: boolean;
   userError: Error | null;
 }
@@ -39,6 +44,8 @@ export interface FirebaseServicesAndUser {
   auth: Auth;
   user: User | null;
   role: 'user' | 'admin' | null;
+  name: string | null;
+  age: number | null;
   isUserLoading: boolean;
   userError: Error | null;
 }
@@ -46,6 +53,8 @@ export interface FirebaseServicesAndUser {
 export interface UserHookResult {
   user: User | null;
   role: 'user' | 'admin' | null;
+  name: string | null;
+  age: number | null;
   isUserLoading: boolean;
   userError: Error | null;
 }
@@ -64,13 +73,15 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
     role: null,
+    name: null,
+    age: null,
     isUserLoading: true,
     userError: null,
   });
 
   useEffect(() => {
     if (!auth) {
-      setUserAuthState({ user: null, role: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
+      setUserAuthState({ user: null, role: null, name: null, age: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
       return;
     }
 
@@ -83,23 +94,31 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
             const userDoc = await getDoc(userDocRef);
             
             let role: 'user' | 'admin' = 'user';
+            let name: string | null = null;
+            let age: number | null = null;
             
+            if (userDoc.exists()) {
+              const data = userDoc.data();
+              role = data.role || 'user';
+              name = data.name || null;
+              age = data.age || null;
+            }
+
             // Explicitly check for predefined admin email
             if (firebaseUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
               role = 'admin';
+              name = name || 'System Admin';
               // Ensure admin document exists in Firestore with correct role
               await setDoc(userDocRef, {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
-                name: 'System Admin',
+                name: name,
                 role: 'admin',
                 updatedAt: new Date().toISOString(),
                 createdAt: userDoc.exists() ? userDoc.data().createdAt : new Date().toISOString()
               }, { merge: true });
-            } else if (userDoc.exists()) {
-              role = userDoc.data().role || 'user';
-            } else {
-              // Standard fallback for new signups
+            } else if (!userDoc.exists()) {
+              // Standard fallback for new signups who might have failed profile creation
               await setDoc(userDocRef, {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
@@ -108,18 +127,18 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
               }, { merge: true });
             }
             
-            setUserAuthState({ user: firebaseUser, role, isUserLoading: false, userError: null });
+            setUserAuthState({ user: firebaseUser, role, name, age, isUserLoading: false, userError: null });
           } catch (error: any) {
             console.error("Error fetching user role:", error);
-            setUserAuthState({ user: firebaseUser, role: 'user', isUserLoading: false, userError: error });
+            setUserAuthState({ user: firebaseUser, role: 'user', name: null, age: null, isUserLoading: false, userError: error });
           }
         } else {
-          setUserAuthState({ user: null, role: null, isUserLoading: false, userError: null });
+          setUserAuthState({ user: null, role: null, name: null, age: null, isUserLoading: false, userError: null });
         }
       },
       (error) => {
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
-        setUserAuthState({ user: null, role: null, isUserLoading: false, userError: error });
+        setUserAuthState({ user: null, role: null, name: null, age: null, isUserLoading: false, userError: error });
       }
     );
     return () => unsubscribe();
@@ -134,6 +153,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       auth: servicesAvailable ? auth : null,
       user: userAuthState.user,
       role: userAuthState.role,
+      name: userAuthState.name,
+      age: userAuthState.age,
       isUserLoading: userAuthState.isUserLoading,
       userError: userAuthState.userError,
     };
@@ -161,6 +182,8 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     auth: context.auth,
     user: context.user,
     role: context.role,
+    name: context.name,
+    age: context.age,
     isUserLoading: context.isUserLoading,
     userError: context.userError,
   };
@@ -196,6 +219,6 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | 
 }
 
 export const useUser = (): UserHookResult => {
-  const { user, role, isUserLoading, userError } = useFirebase();
-  return { user, role, isUserLoading, userError };
+  const { user, role, name, age, isUserLoading, userError } = useFirebase();
+  return { user, role, name, age, isUserLoading, userError };
 };

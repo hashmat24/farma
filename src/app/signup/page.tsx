@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -20,6 +21,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [age, setAge] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +38,7 @@ export default function SignupPage() {
         uid: user.uid,
         email: user.email,
         name: name,
+        age: parseInt(age, 10),
         role: 'user',
         createdAt: new Date().toISOString()
       });
@@ -84,17 +87,31 @@ export default function SignupPage() {
                   className="bg-slate-50"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="jane.smith@example.com" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="bg-slate-50"
-                />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="age">Age</Label>
+                  <Input 
+                    id="age" 
+                    type="number"
+                    placeholder="e.g. 25" 
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    required
+                    className="bg-slate-50"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    placeholder="jane.smith@example.com" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="bg-slate-50"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Security Key</Label>
