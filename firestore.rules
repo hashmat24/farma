@@ -3,111 +3,131 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * CORE PHILOSOPHY:
-     * This ruleset implements a robust, multi-tier authorization model designed for a pharmacy application. 
-     * It leverages path-based ownership for patient data and role-based access control (RBAC) for 
-     * administrative functions.
+     * CORE PHILOSOPHY
+     * This ruleset implements a strict User-Ownership model complemented by an "Admin Marker" 
+     * pattern for high-performance administrative authorization. It prioritizes security 
+     * for sensitive patient data while allowing rapid prototyping by being flexible 
+     * with data shapes (schema-agnostic) except for critical relational identifiers.
      *
-     * DATA STRUCTURE:
-     * - /medicines: Global catalog of pharmaceutical products.
-     * - /patients/{patientId}: Private patient profiles.
-     * - /patients/{patientId}/orders: Subcollection for order history, nested for path-based security.
-     * - /roles_admin/{adminId}: A registry of administrative users.
+     * DATA STRUCTURE
+     * - /users/{userId}: Private user profiles.
+     * - /users/{userId}/orders/{orderId}: Private order history nested under the user.
+     * - /medicines/{medicineId}: Public inventory available for all authenticated users.
+     * - /roles_admin/{adminId}: A marker collection where the existence of a document 
+     *   matching a UID grants administrative privileges.
      *
-     * KEY SECURITY DECISIONS:
-     * 1. Authorization Independence: We favor path-based checks and denormalized fields (like patientId) 
-     *    to ensure rules are performant and do not require excessive get() calls.
-     * 2. Existence-Based Roles: Administrative privileges are determined by the presence of a 
-     *    document in the /roles_admin collection.
-     * 3. Public Read for Catalog: Medicines are readable by any authenticated user to allow the 
-     *    AI pharmacist and users to browse inventory.
-     *
-     * DENORMALIZATION FOR AUTHORIZATION:
-     * - The 'patientId' is included within Order documents and matches the path segment. This 
-     *   allows rules to verify the creator's identity without querying the parent patient document.
+     * KEY SECURITY DECISIONS
+     * - Authorization Independence: Admin status is verified using `exists()` on the 
+     *   `roles_admin` collection, avoiding expensive `get()` calls on user profiles.
+     * - Path-Based Security: Orders are nested under the user's path to allow for 
+     *   simple `isOwner` checks and efficient list queries.
+     * - Relational Integrity: On document creation, the rules enforce that the `userId` 
+     *   field in the data matches the authenticated user's ID and the path ID.
+     * - Prototyping Flexibility: General content fields (e.g., names, descriptions, 
+     *   quantities) are not type-validated to allow for schema iteration.
      */
 
-    // --- Helper Functions ---
+    // --- Global Helper Functions ---
 
-    /** @description Checks if the user is authenticated. */
+    /** Checks if the request is from a signed-in user. */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /** @description Checks if the user's UID matches the provided ID. */
+    /** Checks if the provided ID matches the authenticated user's UID. */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /** @description Checks if the user has an entry in the admin roles collection. */
+    /** 
+     * Checks if the authenticated user is an administrator.
+     * Uses the existence of a document in the roles_admin collection for speed.
+     */
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
-    // The 'isExistingOwner' function was removed as it was unused and contained an invalid variable reference ('resource')
-    // when defined as a helper function. Direct use of 'resource != null' in `allow` statements is the standard practice.
+    /** Combined check for ownership and document existence for updates/deletes. */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    /** Combined check for admin status and document existence for updates/deletes. */
+    function isExistingAdmin() {
+      return resource != null && isAdmin();
+    }
 
     // --- Collection Rules ---
 
     /**
-     * @description Rules for the global medicine inventory.
+     * @description Rules for user profiles. Users can manage their own, admins can view all.
+     * @path /users/{userId}
+     * @allow get, update: (isOwner(userId)), list: (isAdmin())
+     * @deny delete: (Always - profile deletion is a restricted administrative action)
+     * @principle Enforces path-based ownership for personal data.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if false; // Profiles are preserved for order history integrity.
+    }
+
+    /**
+     * @description Marker collection for admin roles. Existence of document = Admin status.
+     * @path /roles_admin/{adminId}
+     * @allow get: (isSignedIn())
+     * @deny write, list: (Users cannot modify admin roles)
+     * @principle Uses a marker collection to decouple role checks from user profile reads.
+     */
+    match /roles_admin/{adminId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create, update, delete: if false; // Managed via Firebase Console or Backend only.
+    }
+
+    /**
+     * @description Public medicine inventory. Authenticated users can browse; admins manage stock.
      * @path /medicines/{medicineId}
-     * @allow (get) Authenticated user viewing stock levels.
-     * @deny (create) Non-admin user attempting to add a new medicine.
-     * @principle Public read for authenticated users; admin-only management.
+     * @allow get, list: (isSignedIn())
+     * @allow write: (isAdmin())
+     * @principle Public-read for inventory with restricted administrative writes.
      */
     match /medicines/{medicineId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if isExistingAdmin();
     }
 
     /**
-     * @description Rules for private patient profile documents.
-     * @path /patients/{patientId}
-     * @allow (get) Patient accessing their own profile details.
-     * @deny (list) One patient trying to browse all other patient records.
-     * @principle Path-based ownership ensures users only access their own data.
+     * @description Individual order history. Nested under user for security and performance.
+     * @path /users/{userId}/orders/{orderId}
+     * @allow get, list, create: (isOwner(userId)), update, delete: (isAdmin())
+     * @deny update: (Users cannot change order status once placed)
+     * @principle Validates relational integrity by forcing userId in data to match the path.
      */
-    match /patients/{patientId} {
-      allow get, list: if isOwner(patientId) || isAdmin();
-      allow create: if isOwner(patientId);
-      allow update: if (isOwner(patientId) || isAdmin()) && resource != null;
-      allow delete: if isAdmin() && resource != null;
+    match /users/{userId}/orders/{orderId} {
+      allow get, list: if isOwner(userId) || isAdmin();
+      
+      // On create, ensure the user is the owner and the internal userId matches the path.
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      
+      // Admins manage status and order fulfillment. Users cannot edit orders once placed.
+      allow update: if isExistingAdmin();
+      allow delete: if isExistingAdmin();
     }
 
     /**
-     * @description Rules for orders placed by patients.
-     * @path /patients/{patientId}/orders/{orderId}
-     * @allow (create) Patient placing an order where the internal patientId matches their UID.
-     * @deny (update) Patient trying to change the patientId of an existing order.
-     * @principle Relational integrity check combined with path-based ownership.
+     * @description Static role definitions. Used for reference.
+     * @path /roles/{roleId}
+     * @allow get, list: (isSignedIn())
+     * @deny write: (Static reference data)
+     * @principle Read-only reference data for role names and descriptions.
      */
-    match /patients/{patientId}/orders/{orderId} {
-      allow get, list: if isOwner(patientId) || isAdmin();
-      
-      // Prototyping: Validating only relational integrity fields
-      allow create: if isOwner(patientId) && request.resource.data.patientId == patientId;
-      
-      // Ensure existing data is not modified by unauthorized users and patientId remains immutable
-      allow update: if (isOwner(patientId) || isAdmin()) && resource != null && request.resource.data.patientId == resource.data.patientId;
-      
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    /**
-     * @description Rules for identifying administrative users.
-     * @path /roles_admin/{adminId}
-     * @allow (get) User checking if they have admin privileges.
-     * @deny (create) User attempting to self-promote to an admin role.
-     * @principle Existence-over-content RBAC; management should be external (Console/Admin SDK).
-     */
-    match /roles_admin/{adminId} {
-      allow get: if isOwner(adminId) || isAdmin();
-      allow list: if isAdmin();
-      
-      // CRITICAL: Writing to roles must be restricted to prevent unauthorized privilege escalation.
-      // Prototyping note: Generally managed via Firebase Console or Admin SDK.
-      allow create, update, delete: if false; 
+    match /roles/{roleId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
     }
   }
 }
