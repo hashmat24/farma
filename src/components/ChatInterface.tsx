@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { useUser } from '@/firebase/provider';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -42,6 +43,7 @@ const INITIAL_STEPS: ReasoningStep[] = [
 ];
 
 export function ChatInterface() {
+  const { user } = useUser();
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { 
@@ -61,8 +63,12 @@ export function ChatInterface() {
 
   useEffect(() => {
     setMounted(true);
-    getPatientInfo('patient123').then(setPatientInfo);
-  }, []);
+    // Use logged in user ID or a fallback for the demo
+    const effectiveId = user?.uid || 'patient123';
+    getPatientInfo(effectiveId).then(info => {
+      setPatientInfo(info || { name: user?.email?.split('@')[0], history: ['No clinical history on file'], age: 'Unknown', member_id: 'NEW-USER' });
+    });
+  }, [user]);
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
@@ -78,7 +84,6 @@ export function ChatInterface() {
     const steps = INITIAL_STEPS.map(s => ({ ...s, status: 'pending' as const }));
     setReasoningSteps(steps);
     
-    // Run through first 3 steps quickly to show activity
     for (let i = 0; i < 3; i++) {
       steps[i].status = 'loading';
       setReasoningSteps([...steps]);
@@ -87,7 +92,6 @@ export function ChatInterface() {
       setReasoningSteps([...steps]);
     }
     
-    // Remaining steps are handled after the AI returns or during wait
     steps[3].status = 'loading';
     setReasoningSteps([...steps]);
   };
@@ -112,12 +116,10 @@ export function ChatInterface() {
     setIsLoading(true);
 
     try {
-      // Start reasoning chain animation
       runReasoningAnimation();
 
-      const result = await chatAction('patient123', userMsg);
+      const result = await chatAction(user?.uid || 'patient123', userMsg);
       
-      // Complete reasoning chain
       await finishReasoningAnimation();
 
       const assistantTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -136,8 +138,6 @@ export function ChatInterface() {
     } catch (error) {
       console.error('Chat Error:', error);
       toast({ variant: 'destructive', title: 'Error', description: 'Pharmacy service offline. Please check connectivity.' });
-      
-      // Reset reasoning steps on error
       setReasoningSteps(INITIAL_STEPS);
     } finally {
       setIsLoading(false);
@@ -170,7 +170,7 @@ export function ChatInterface() {
                   <ClipboardList className="h-3 w-3" /> Medical History
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {patientInfo.history.map((h: string, i: number) => (
+                  {patientInfo.history?.map((h: string, i: number) => (
                     <Badge key={i} variant="secondary" className="bg-slate-100 text-slate-600 border-none font-medium text-[10px]">
                       {h}
                     </Badge>
@@ -278,7 +278,7 @@ export function ChatInterface() {
         </div>
       </Card>
 
-      {/* 3. Reasoning & Agent Activity Panel */}
+      {/* 3. Reasoning Panel */}
       <Card className="lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col min-h-0">
         <CardHeader className="pb-4 bg-slate-50/50 shrink-0 border-b">
           <CardTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
