@@ -43,7 +43,7 @@ const INITIAL_STEPS: ReasoningStep[] = [
 ];
 
 export function ChatInterface() {
-  const { user } = useUser();
+  const { user, name: userName, age: userAge } = useUser();
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { 
@@ -65,10 +65,21 @@ export function ChatInterface() {
     setMounted(true);
     // Use logged in user ID or a fallback for the demo
     const effectiveId = user?.uid || 'patient123';
+    
     getPatientInfo(effectiveId).then(info => {
-      setPatientInfo(info || { name: user?.email?.split('@')[0], history: ['No clinical history on file'], age: 'Unknown', member_id: 'NEW-USER' });
+      if (info) {
+        setPatientInfo(info);
+      } else if (user) {
+        // Use data from Firestore profile for new users
+        setPatientInfo({ 
+          name: userName || user?.email?.split('@')[0], 
+          history: ['No clinical history on file'], 
+          age: userAge || 'Unknown', 
+          member_id: user.uid.slice(-8).toUpperCase()
+        });
+      }
     });
-  }, [user]);
+  }, [user, userName, userAge]);
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
