@@ -84,23 +84,22 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
             
             let role: 'user' | 'admin' = 'user';
             
-            // Check for predefined admin email
-            if (firebaseUser.email === ADMIN_EMAIL) {
+            // Explicitly check for predefined admin email
+            if (firebaseUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
               role = 'admin';
-              // Ensure admin document exists with correct role
-              if (!userDoc.exists() || userDoc.data().role !== 'admin') {
-                await setDoc(userDocRef, {
-                  uid: firebaseUser.uid,
-                  email: firebaseUser.email,
-                  name: 'Admin',
-                  role: 'admin',
-                  createdAt: new Date().toISOString()
-                }, { merge: true });
-              }
+              // Ensure admin document exists in Firestore with correct role
+              await setDoc(userDocRef, {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                name: 'System Admin',
+                role: 'admin',
+                updatedAt: new Date().toISOString(),
+                createdAt: userDoc.exists() ? userDoc.data().createdAt : new Date().toISOString()
+              }, { merge: true });
             } else if (userDoc.exists()) {
               role = userDoc.data().role || 'user';
             } else {
-              // Create default profile for new signups if not exists
+              // Standard fallback for new signups
               await setDoc(userDocRef, {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
