@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity, CheckCircle2 } from 'lucide-react';
+import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -44,24 +44,30 @@ const INITIAL_STEPS: ReasoningStep[] = [
 export function ChatInterface() {
   const { user, name: userName, age: userAge } = useUser();
   const [mounted, setMounted] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    { 
-      role: 'assistant', 
-      content: 'Hello! I am your AI Pharmacist. How can I help you with your medications today?',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [patientInfo, setPatientInfo] = useState<any>(null);
   const [reasoningSteps, setReasoningSteps] = useState<ReasoningStep[]>(INITIAL_STEPS);
   const [activeEntities, setActiveEntities] = useState<Message['entities']>(undefined);
+  const [displayTraceId, setDisplayTraceId] = useState<string>('');
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     setMounted(true);
+    
+    // Initialize first message and trace ID only on client to avoid hydration mismatch
+    setMessages([
+      { 
+        role: 'assistant', 
+        content: 'Hello! I am your AI Pharmacist. How can I help you with your medications today?',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+    setDisplayTraceId(`tr-${Date.now().toString().slice(-6)}`);
+
     const effectiveId = user?.uid || 'patient123';
     
     getPatientInfo(effectiveId).then(info => {
@@ -334,7 +340,7 @@ export function ChatInterface() {
           <div className="mt-8 p-4 bg-slate-50 rounded-xl border border-dashed text-center shrink-0">
             <Info className="h-4 w-4 mx-auto mb-2 text-slate-300" />
             <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">Auditability Active</p>
-            <p className="text-[8px] text-slate-400 mt-1 font-mono">Trace ID: tr-{Date.now().toString().slice(-6)}</p>
+            <p className="text-[8px] text-slate-400 mt-1 font-mono">Trace ID: {displayTraceId || 'Initializing...'}</p>
           </div>
         </CardContent>
       </Card>

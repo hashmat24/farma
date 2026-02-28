@@ -2,7 +2,7 @@
 
 import React, { useMemo, type ReactNode } from 'react';
 import { FirebaseProvider } from '@/firebase/provider';
-import { initializeFirebase } from '@/firebase';
+import { initializeFirebase } from './app'; // Import directly from app to avoid circular barrel loop
 
 interface FirebaseClientProviderProps {
   children: ReactNode;
