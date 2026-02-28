@@ -75,9 +75,8 @@ export function Navbar() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0 border shadow-sm overflow-hidden">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={`https://picsum.photos/seed/${user?.uid}/40/40`} />
                   <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold">
-                    {user?.email?.[0].toUpperCase()}
+                    {(name || user?.email)?.[0].toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -85,8 +84,8 @@ export function Navbar() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Account Security</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-xs py-3">
-                Logged in as <span className="font-bold ml-1">{user?.email}</span>
+              <DropdownMenuItem className="text-xs py-3 text-slate-500">
+                Logged in as <span className="font-bold ml-1 text-slate-900">{user?.email}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-destructive font-bold cursor-pointer">

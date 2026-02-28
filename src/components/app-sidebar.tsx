@@ -93,8 +93,9 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <div className="flex items-center gap-3 p-2 group-data-[collapsible=icon]:justify-center">
               <Avatar className="h-8 w-8">
-                <AvatarImage src="https://picsum.photos/seed/dr-roberts/40/40" />
-                <AvatarFallback>MR</AvatarFallback>
+                <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold uppercase">
+                  MR
+                </AvatarFallback>
               </Avatar>
               <div className="flex flex-col truncate group-data-[collapsible=icon]:hidden">
                 <span className="text-sm font-medium">Dr. Michael Roberts</span>
