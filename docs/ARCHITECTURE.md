@@ -23,10 +23,10 @@ CuraCare AI is an agentic healthcare system that leverages LLM-based orchestrati
 ## 5. DATABASE DESIGN
 - **Medicines**: Stores metadata, pricing, and stock levels.
 - **Patients**: Stores history and membership data.
-- **Orders**: Relational link between Patients and Medicines, including Langfuse audit traces.
+- **Orders**: Relational link between Patients and Medicines, including **Langfuse** audit traces.
 - **Refill Logic**: Uses a simple `days_left = (qty / dosage) - elapsed_time` formula calculated in `db.ts`.
 
-## 6. AI ORCHESTRATION LAYER
+## 6. AI ORCHESTRATION LAYER (Firebase Genkit)
 - **Model**: Gemini 1.5 Flash (via `@genkit-ai/google-genai`).
 - **Tool Calling**: Genkit's `defineTool` manages the interface between the LLM and the TypeScript functions.
 - **Execution Flow**:
@@ -41,23 +41,16 @@ CuraCare AI is an agentic healthcare system that leverages LLM-based orchestrati
 - **Tool Augmentation**: The LLM doesn't "know" the inventory; it must query the `check_inventory` tool to be grounded in reality.
 - **Safety Gates**: The LLM is instructed to never call `create_order` without first calling `check_prescription`.
 
-## 8. REQUEST FLOW TRACE
-`User Input -> ChatInterface -> chatAction() -> automatedPrescriptionOrderingFlow -> Tool(getUserHistory) -> Tool(extractDetails) -> Tool(checkPrescription) -> Tool(checkInventory) -> Tool(createOrder) -> Tool(updateInventory) -> Tool(triggerWebhook) -> Final Response -> UI Render`
+## 8. OBSERVABILITY (Langfuse)
+- Every AI interaction generates a `trace_id`.
+- Order records store this `trace_id` for compliance.
+- The UI provides deep-links to the Langfuse dashboard to audit the LLM's clinical reasoning.
 
 ## 9. SAFETY & VALIDATION
 - **Zod Schemas**: Every tool and flow has strict input/output validation via Zod.
 - **System Instructions**: The "MANDATORY PROTOCOL" in the system prompt ensures the AI follows clinical guidelines.
 
-## 10. SCALABILITY & IMPROVEMENTS
-- **Production Migration**: Migrate the singleton in `db.ts` to a live Firebase Firestore instance.
-- **Langfuse Implementation**: Ensure all Genkit calls use the `traceId` for full observability.
-- **Parallelization**: Future versions could parallelize `check_prescription` and `check_inventory`.
-
-## 11. TECHNICAL WEAKNESSES
-- **Statelessness**: Currently, only the immediate message is processed. Future: Implement a `message_history` parameter.
-- **Single Point of Failure**: Dependency on the Google AI API. Mitigation: Implement a fallback model (e.g., Vertex AI).
-
-## 12. INTERVIEW / JUDGE-LEVEL QUESTIONS
+## 10. INTERVIEW / JUDGE-LEVEL QUESTIONS
 1. **How is relational integrity maintained in the mock DB?**
    - Through explicit ID references and a centralized singleton store.
 2. **What happens if the LLM hallucinates a medicine name?**
@@ -68,13 +61,3 @@ CuraCare AI is an agentic healthcare system that leverages LLM-based orchestrati
    - To keep the entire stack in TypeScript for better type safety and faster development speed.
 5. **How does the refill logic handle changing dosages?**
    - Currently, it assumes 1 unit/day. Improvement: Pass `dosage` from patient history into the calculation tool.
-6. **How do you prevent unauthorized users from placing orders?**
-   - In production, Firebase Auth UIDs are matched against the `{patientId}` path in Firestore security rules.
-7. **Is the AI reasoning panel "real"?**
-   - It's a simulation driven by the execution state of the Server Action, intended to show the user the "Chain of Thought."
-8. **What is the primary bottleneck for LLM latency here?**
-   - The multi-step tool-calling loop. Gemini 1.5 Flash is used specifically to mitigate this.
-9. **How do you trigger external warehouse logistics?**
-   - Via the `trigger_warehouse_webhook` tool which can perform authenticated POST requests.
-10. **Can this system handle image-based prescriptions?**
-    - Yes, by adding a multi-modal tool to Genkit that uses Gemini's vision capabilities.
