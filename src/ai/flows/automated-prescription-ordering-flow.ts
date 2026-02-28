@@ -30,8 +30,14 @@ const AutomatedPrescriptionOrderingInputSchema = z.object({
 export type AutomatedPrescriptionOrderingInput = z.infer<typeof AutomatedPrescriptionOrderingInputSchema>;
 
 const AutonomousPharmacistOutputSchema = z.object({
-  response: z.string().describe('The AI pharmacist\'s response.'),
-  order_id: z.string().optional(),
+  response: z.string().describe("The AI pharmacist's response."),
+  order_id: z.string().optional().describe('The ID of the created order, if applicable.'),
+  order_details: z.object({
+    medicineName: z.string(),
+    qty: z.number(),
+    totalPrice: z.number(),
+    deliveryDate: z.string(),
+  }).optional(),
   detected_entities: z.object({
     medicineName: z.string().optional(),
     dosage: z.string().optional(),
@@ -102,7 +108,6 @@ const check_prescription = ai.defineTool(
   async (input) => {
     const med = db.getMedicine(input.medicine_id);
     const required = med?.prescription_required || false;
-    // Mock logic: patients in the system are assumed to have valid prescriptions for demo purposes
     return { 
       required, 
       valid: true, 
@@ -171,9 +176,23 @@ const trigger_webhook = ai.defineTool(
     outputSchema: z.object({ status: z.string() }),
   },
   async (input) => {
-    // In a real app, this would call fetch() to the warehouse API
     console.log(`WEBHOOK TRIGGERED: Order ${input.order_id} dispatched to warehouse.`);
     return { status: 'dispatched' };
+  }
+);
+
+const calculate_refill_schedule = ai.defineTool(
+  {
+    name: 'calculate_refill_schedule',
+    description: 'Predicts the next refill date for the patient based on their dosage.',
+    inputSchema: z.object({ patient_id: z.string(), medicine_id: z.string(), qty: z.number() }),
+    outputSchema: z.object({ refill_date: z.string() }),
+  },
+  async (input) => {
+    const dosagePerDay = 1;
+    const daysCovered = input.qty / dosagePerDay;
+    const refillDate = new Date(Date.now() + (daysCovered - 2) * 24 * 60 * 60 * 1000);
+    return { refill_date: refillDate.toISOString() };
   }
 );
 
@@ -192,15 +211,24 @@ const autonomousPharmacistPrompt = ai.definePrompt({
     check_inventory,
     create_order,
     update_inventory,
-    trigger_webhook
+    trigger_webhook,
+    calculate_refill_schedule
   ],
-  system: `You are an autonomous AI pharmacist for a smart pharmacy system. You have access to 8 tools. You must ALWAYS follow this exact sequence: 
-1. extract_medicine_details first 
-2. check_prescription before approving any order 
-3. check_inventory to confirm stock 
-4. create_order, update_inventory, trigger_webhook together 
+  system: `You are an autonomous AI pharmacist for a smart pharmacy system. You have access to 9 tools.
 
-You CANNOT skip the prescription check. You CANNOT approve orders with zero stock. Every decision must be logged. Respond in the same language as the user. If the user speaks Urdu/Hindi, respond in Urdu/Hindi.`,
+MANDATORY PROTOCOL:
+1. If symptoms described: call search_medicine, suggest 1-2 OTC options with Price/Stock.
+2. Before order: ALWAYS call check_inventory.
+3. If prescription_required=true: Explain requirement, ask for confirmation of prescription on file. Stop if not confirmed.
+4. If OTC or Prescription Confirmed: Ask "How many units would you like to order?"
+5. ONLY after explicit confirmation (yes, confirm, order it): 
+   a. call create_order
+   b. call update_inventory
+   c. call trigger_webhook
+   d. call calculate_refill_schedule
+   e. Set 'order_id' and 'order_details' in your response.
+
+You CANNOT skip prescription checks. Respond in the same language as the user (Urdu/Hindi/English).`,
   prompt: `Patient ID: {{{patient_id}}}
 User message: {{{message}}}
 Trace ID: {{{trace_id}}}

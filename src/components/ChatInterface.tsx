@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity } from 'lucide-react';
+import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity, CheckCircle2, Package, Truck, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -18,6 +18,13 @@ type Message = {
   content: string;
   timestamp: string;
   traceUrl?: string;
+  orderId?: string;
+  orderDetails?: {
+    medicineName: string;
+    qty: number;
+    totalPrice: number;
+    deliveryDate: string;
+  };
   entities?: {
     medicineName?: string;
     dosage?: string;
@@ -41,6 +48,47 @@ const INITIAL_STEPS: ReasoningStep[] = [
   { id: 'dispatch', label: 'Order Processing', status: 'pending' },
 ];
 
+function OrderCard({ details, orderId }: { details: Message['orderDetails'], orderId: string }) {
+  if (!details) return null;
+  return (
+    <div className="mt-4 p-4 rounded-xl border-2 border-green-100 bg-green-50/30 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-green-700 font-bold text-sm">
+          <CheckCircle2 className="h-4 w-4" /> Order Confirmed
+        </div>
+        <Badge variant="outline" className="text-[10px] font-mono border-green-200 text-green-700 bg-white">
+          {orderId}
+        </Badge>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-4 py-2 border-y border-green-100/50">
+        <div>
+          <p className="text-[10px] text-slate-400 font-bold uppercase">Medicine</p>
+          <p className="text-xs font-bold text-slate-700">{details.medicineName}</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-slate-400 font-bold uppercase">Quantity</p>
+          <p className="text-xs font-bold text-slate-700">{details.qty} Units</p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between text-xs pt-1">
+        <div className="flex items-center gap-1.5 text-slate-500">
+          <Truck className="h-3.5 w-3.5" />
+          <span>Arriving: {new Date(details.deliveryDate).toLocaleDateString()}</span>
+        </div>
+        <div className="font-extrabold text-slate-900">
+          Total: ${details.totalPrice.toFixed(2)}
+        </div>
+      </div>
+      
+      <p className="text-[9px] text-slate-400 italic text-center pt-1">
+        Inventory has been updated and your order is being prepared.
+      </p>
+    </div>
+  );
+}
+
 export function ChatInterface() {
   const { user, name: userName, age: userAge } = useUser();
   const [mounted, setMounted] = useState(false);
@@ -58,7 +106,6 @@ export function ChatInterface() {
   useEffect(() => {
     setMounted(true);
     
-    // Initialize first message and trace ID only on client to avoid hydration mismatch
     setMessages([
       { 
         role: 'assistant', 
@@ -156,8 +203,14 @@ export function ChatInterface() {
         content: result.response,
         timestamp: assistantTimestamp,
         traceUrl: result.trace_url || undefined,
+        orderId: result.order_id,
+        orderDetails: result.order_details,
         entities: result.entities
       }]);
+
+      if (result.order_id) {
+        toast({ title: 'Order Placed', description: `Order ${result.order_id} has been recorded successfully.` });
+      }
     } catch (error) {
       console.error('Chat Error:', error);
       toast({ variant: 'destructive', title: 'Error', description: 'Pharmacy service offline. Please check connectivity.' });
@@ -259,6 +312,11 @@ export function ChatInterface() {
                     : 'bg-white border border-slate-100 text-[#334155] rounded-tl-none'
                 )}>
                   <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+                  
+                  {msg.role === 'assistant' && msg.orderId && msg.orderDetails && (
+                    <OrderCard details={msg.orderDetails} orderId={msg.orderId} />
+                  )}
+
                   <div className={cn(
                     "mt-2 text-[10px] flex items-center justify-between gap-4 font-bold uppercase tracking-wider",
                     msg.role === 'user' ? "text-white/60" : "text-slate-400"

@@ -70,6 +70,7 @@ export async function chatAction(patientId: string, message: string, history: an
       response: result.response,
       trace_url: `https://cloud.langfuse.com/project/demo/traces/${trace_id}`,
       order_id: result.order_id,
+      order_details: result.order_details,
       entities: result.detected_entities
     };
 
