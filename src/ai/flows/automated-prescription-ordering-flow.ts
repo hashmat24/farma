@@ -46,7 +46,7 @@ const AutonomousPharmacistOutputSchema = z.object({
 });
 export type AutonomousPharmacistOutput = z.infer<typeof AutonomousPharmacistOutputSchema>;
 
-// --- Tool Definitions (The 8 Clinical Tools) ---
+// --- Tool Definitions (The Clinical Tools) ---
 
 const get_user_history = ai.defineTool(
   {
@@ -65,7 +65,7 @@ const get_user_history = ai.defineTool(
 const search_medicine = ai.defineTool(
   {
     name: 'search_medicine',
-    description: 'Searches for medicines based on symptoms or keywords.',
+    description: 'Searches for medicines based on symptoms (e.g., headache, fever) or keywords.',
     inputSchema: z.object({ query: z.string() }),
     outputSchema: z.array(z.any()),
   },
@@ -75,7 +75,7 @@ const search_medicine = ai.defineTool(
 const extract_medicine_details = ai.defineTool(
   {
     name: 'extract_medicine_details',
-    description: '1st in Sequence: Extracts medicine name, ID, quantity, and dosage from text.',
+    description: 'Step 1: Analyzes text to extract medicine name, ID, quantity, and dosage.',
     inputSchema: z.object({ raw_text: z.string() }),
     outputSchema: z.object({
       medicine_name: z.string().optional(),
@@ -88,7 +88,10 @@ const extract_medicine_details = ai.defineTool(
     const lowerText = input.raw_text.toLowerCase();
     const medicines = db.getMedicines();
     const med = medicines.find(m => lowerText.includes(m.name.toLowerCase()));
+    
+    // Simple regex for quantity (looks for numbers)
     const qtyMatch = lowerText.match(/(\d+)/);
+    
     return {
       medicine_name: med?.name,
       medicine_id: med?.id,
@@ -101,17 +104,18 @@ const extract_medicine_details = ai.defineTool(
 const check_prescription = ai.defineTool(
   {
     name: 'check_prescription',
-    description: '2nd in Sequence: Verifies if a prescription is required and if the patient has one.',
+    description: 'Step 2: Verifies if a prescription is required for the medicine.',
     inputSchema: z.object({ medicine_id: z.string(), patient_id: z.string() }),
     outputSchema: z.object({ required: z.boolean(), valid: z.boolean(), message: z.string() }),
   },
   async (input) => {
     const med = db.getMedicine(input.medicine_id);
     const required = med?.prescription_required || false;
+    // For prototype, we assume the prescription on file is valid if they confirm it
     return { 
       required, 
       valid: true, 
-      message: required ? "Prescription verified on file." : "No prescription required for this OTC medicine." 
+      message: required ? "Prescription verified on file." : "No prescription required (OTC)." 
     };
   }
 );
@@ -119,21 +123,25 @@ const check_prescription = ai.defineTool(
 const check_inventory = ai.defineTool(
   {
     name: 'check_inventory',
-    description: '3rd in Sequence: Confirms current stock levels.',
+    description: 'Step 3: Confirms current stock levels for a specific medicine.',
     inputSchema: z.object({ medicine_id: z.string() }),
-    outputSchema: z.object({ stock_qty: z.number(), available: z.boolean() }),
+    outputSchema: z.object({ stock_qty: z.number(), available: z.boolean(), unit_price: z.number() }),
   },
   async (input) => {
     const med = db.getMedicine(input.medicine_id);
     const stock = med?.stock_qty || 0;
-    return { stock_qty: stock, available: stock > 0 };
+    return { 
+      stock_qty: stock, 
+      available: stock > 0,
+      unit_price: med?.unit_price || 0
+    };
   }
 );
 
 const create_order = ai.defineTool(
   {
     name: 'create_order',
-    description: '4th in Sequence (Part A): Finalizes the order record.',
+    description: 'Step 4a: Finalizes the order and creates a record in the system.',
     inputSchema: z.object({ patient_id: z.string(), medicine_id: z.string(), qty: z.number(), trace_id: z.string() }),
     outputSchema: z.any(),
   },
@@ -158,33 +166,33 @@ const create_order = ai.defineTool(
 const update_inventory = ai.defineTool(
   {
     name: 'update_inventory',
-    description: '4th in Sequence (Part B): Decrements stock levels.',
+    description: 'Step 4b: Decrements stock levels immediately after order creation.',
     inputSchema: z.object({ medicine_id: z.string(), qty: z.number() }),
-    outputSchema: z.object({ success: z.boolean() }),
+    outputSchema: z.object({ success: z.boolean(), new_stock_qty: z.number() }),
   },
   async (input) => {
-    db.updateStock(input.medicine_id, input.qty);
-    return { success: true };
+    const newQty = db.updateStock(input.medicine_id, input.qty);
+    return { success: true, new_stock_qty: newQty || 0 };
   }
 );
 
 const trigger_webhook = ai.defineTool(
   {
     name: 'trigger_webhook',
-    description: '4th in Sequence (Part C): Notifies the warehouse for dispatch.',
+    description: 'Step 4c: Notifies the warehouse logistics system for dispatch.',
     inputSchema: z.object({ order_id: z.string() }),
-    outputSchema: z.object({ status: z.string() }),
+    outputSchema: z.object({ status: z.string(), dispatch_ref: z.string() }),
   },
   async (input) => {
-    console.log(`WEBHOOK TRIGGERED: Order ${input.order_id} dispatched to warehouse.`);
-    return { status: 'dispatched' };
+    const dispatchRef = `WH-${Math.random().toString(36).substring(7).toUpperCase()}`;
+    return { status: 'dispatched', dispatch_ref: dispatchRef };
   }
 );
 
 const calculate_refill_schedule = ai.defineTool(
   {
     name: 'calculate_refill_schedule',
-    description: 'Predicts the next refill date for the patient based on their dosage.',
+    description: 'Predicts the next refill date based on current order quantity.',
     inputSchema: z.object({ patient_id: z.string(), medicine_id: z.string(), qty: z.number() }),
     outputSchema: z.object({ refill_date: z.string() }),
   },
@@ -214,21 +222,26 @@ const autonomousPharmacistPrompt = ai.definePrompt({
     trigger_webhook,
     calculate_refill_schedule
   ],
-  system: `You are an autonomous AI pharmacist for a smart pharmacy system. You have access to 9 tools.
+  system: `You are CuraCare AI, a proactive autonomous clinical pharmacist assistant. 
 
-MANDATORY PROTOCOL:
-1. If symptoms described: call search_medicine, suggest 1-2 OTC options with Price/Stock.
-2. Before order: ALWAYS call check_inventory.
-3. If prescription_required=true: Explain requirement, ask for confirmation of prescription on file. Stop if not confirmed.
-4. If OTC or Prescription Confirmed: Ask "How many units would you like to order?"
-5. ONLY after explicit confirmation (yes, confirm, order it): 
-   a. call create_order
-   b. call update_inventory
-   c. call trigger_webhook
-   d. call calculate_refill_schedule
-   e. Set 'order_id' and 'order_details' in your response.
+OPERATIONAL STATE MACHINE:
+1. GATHERING: If symptoms described, call search_medicine and suggest options.
+2. VALIDATION: Once a medicine is selected, call extract_medicine_details, then check_prescription, then check_inventory.
+3. CONFIRMATION: Ask "You want to order [Qty] of [Medicine]. Should I proceed?"
+4. EXECUTION: If user says "yes", "confirm", "proceed", or similar:
+   - Call create_order
+   - Call update_inventory
+   - Call trigger_webhook
+   - Call calculate_refill_schedule
+   - Return the order_id and order_details in your final response.
 
-You CANNOT skip prescription checks. Respond in the same language as the user (Urdu/Hindi/English).`,
+MANDATORY RULES:
+- Never skip Step 2 (Prescription Check).
+- Never skip Step 3 (Inventory Check).
+- Never create an order without explicit confirmation.
+- Respond in the user's language (Urdu/Hindi/English).
+
+If the user confirms, you MUST execute all 4 execution tools in Step 4.`,
   prompt: `Patient ID: {{{patient_id}}}
 User message: {{{message}}}
 Trace ID: {{{trace_id}}}
@@ -249,7 +262,7 @@ const automatedPrescriptionOrderingFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await autonomousPharmacistPrompt(input);
-    return output || { response: "I am processing your request. Please wait." };
+    return output || { response: "I'm sorry, I'm having trouble processing your request. Please try again." };
   }
 );
 
