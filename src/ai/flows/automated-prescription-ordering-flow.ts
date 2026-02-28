@@ -7,7 +7,7 @@
  * 3. check_inventory
  * 4. create_order + update_inventory + trigger_webhook
  *
- * It also supports multilingual responses (Urdu/Hindi/English) and multimodal prescription analysis.
+ * It also supports multilingual responses (Urdu/Hindi/Marathi/English) and multimodal prescription analysis.
  */
 
 import { ai } from '@/ai/genkit';
@@ -240,7 +240,7 @@ MANDATORY RULES:
 - Never skip Step 2 (Prescription Check).
 - Never skip Step 3 (Inventory Check).
 - Never create an order without explicit confirmation.
-- Respond in the user's language (Urdu/Hindi/English).
+- Respond in the user's language (Urdu/Hindi/Marathi/English).
 - If a photo is provided, use it to identify the medicine and dosage.
 
 If the user confirms, you MUST execute all 4 execution tools in Step 4.`,
