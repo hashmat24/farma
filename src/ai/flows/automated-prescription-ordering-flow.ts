@@ -7,7 +7,7 @@
  * 3. check_inventory
  * 4. create_order + update_inventory + trigger_webhook
  *
- * It also supports multilingual responses (Urdu/Hindi/English).
+ * It also supports multilingual responses (Urdu/Hindi/English) and multimodal prescription analysis.
  */
 
 import { ai } from '@/ai/genkit';
@@ -26,6 +26,7 @@ const AutomatedPrescriptionOrderingInputSchema = z.object({
   message: z.string().describe('The natural language request.'),
   history: z.array(MessageSchema).optional().describe('The conversation history.'),
   trace_id: z.string().describe('A unique identifier for the current trace/session.'),
+  photoDataUri: z.string().optional().describe("A photo of a prescription, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."),
 });
 export type AutomatedPrescriptionOrderingInput = z.infer<typeof AutomatedPrescriptionOrderingInputSchema>;
 
@@ -75,7 +76,7 @@ const search_medicine = ai.defineTool(
 const extract_medicine_details = ai.defineTool(
   {
     name: 'extract_medicine_details',
-    description: 'Step 1: Analyzes text to extract medicine name, ID, quantity, and dosage.',
+    description: 'Step 1: Analyzes text and images to extract medicine name, ID, quantity, and dosage.',
     inputSchema: z.object({ raw_text: z.string() }),
     outputSchema: z.object({
       medicine_name: z.string().optional(),
@@ -115,7 +116,7 @@ const check_prescription = ai.defineTool(
     return { 
       required, 
       valid: true, 
-      message: required ? "Prescription verified on file." : "No prescription required (OTC)." 
+      message: required ? "Prescription verified." : "No prescription required (OTC)." 
     };
   }
 );
@@ -225,7 +226,7 @@ const autonomousPharmacistPrompt = ai.definePrompt({
   system: `You are CuraCare AI, a proactive autonomous clinical pharmacist assistant. 
 
 OPERATIONAL STATE MACHINE:
-1. GATHERING: If symptoms described, call search_medicine and suggest options.
+1. GATHERING: If symptoms described or prescription photo provided, call search_medicine or extract_medicine_details and suggest options.
 2. VALIDATION: Once a medicine is selected, call extract_medicine_details, then check_prescription, then check_inventory.
 3. CONFIRMATION: Ask "You want to order [Qty] of [Medicine]. Should I proceed?"
 4. EXECUTION: If user says "yes", "confirm", "proceed", or similar:
@@ -240,11 +241,14 @@ MANDATORY RULES:
 - Never skip Step 3 (Inventory Check).
 - Never create an order without explicit confirmation.
 - Respond in the user's language (Urdu/Hindi/English).
+- If a photo is provided, use it to identify the medicine and dosage.
 
 If the user confirms, you MUST execute all 4 execution tools in Step 4.`,
   prompt: `Patient ID: {{{patient_id}}}
 User message: {{{message}}}
 Trace ID: {{{trace_id}}}
+
+{{#if photoDataUri}}Prescription Image: {{media url=photoDataUri}}{{/if}}
 
 Conversation History:
 {{#each history}}

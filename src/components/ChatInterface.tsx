@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity, CheckCircle2, Package, Truck, Calendar } from 'lucide-react';
+import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity, CheckCircle2, Package, Truck, Calendar, Camera, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -12,6 +12,12 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useUser } from '@/firebase/provider';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Message = {
   role: 'user' | 'assistant';
@@ -19,6 +25,7 @@ type Message = {
   timestamp: string;
   traceUrl?: string;
   orderId?: string;
+  photoDataUri?: string;
   orderDetails?: {
     medicineName: string;
     qty: number;
@@ -100,6 +107,12 @@ export function ChatInterface() {
   const [activeEntities, setActiveEntities] = useState<Message['entities']>(undefined);
   const [displayTraceId, setDisplayTraceId] = useState<string>('');
 
+  // Camera state
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -141,6 +154,44 @@ export function ChatInterface() {
     scrollToBottom();
   }, [messages, isLoading, scrollToBottom]);
 
+  const startCamera = async () => {
+    setIsCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      toast({
+        variant: 'destructive',
+        title: 'Camera Error',
+        description: 'Could not access the camera. Please check your permissions.',
+      });
+      setIsCameraOpen(false);
+    }
+  };
+
+  const stopCamera = () => {
+    const stream = videoRef.current?.srcObject as MediaStream;
+    stream?.getTracks().forEach(track => track.stop());
+    setIsCameraOpen(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const context = canvasRef.current.getContext('2d');
+      if (context) {
+        canvasRef.current.width = videoRef.current.videoWidth;
+        canvasRef.current.height = videoRef.current.videoHeight;
+        context.drawImage(videoRef.current, 0, 0);
+        const dataUri = canvasRef.current.toDataURL('image/jpeg');
+        setCapturedImage(dataUri);
+        stopCamera();
+      }
+    }
+  };
+
   const runReasoningAnimation = async () => {
     const steps = INITIAL_STEPS.map(s => ({ ...s, status: 'pending' as const }));
     setReasoningSteps(steps);
@@ -168,10 +219,12 @@ export function ChatInterface() {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && !capturedImage) || isLoading) return;
 
     const userMsg = input;
+    const photo = capturedImage;
     setInput('');
+    setCapturedImage(null);
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
     const history = messages.map(m => ({
@@ -179,13 +232,13 @@ export function ChatInterface() {
       content: m.content
     }));
 
-    setMessages(prev => [...prev, { role: 'user', content: userMsg, timestamp }]);
+    setMessages(prev => [...prev, { role: 'user', content: userMsg || 'Prescription Image Sent', timestamp, photoDataUri: photo || undefined }]);
     setIsLoading(true);
 
     try {
       runReasoningAnimation();
 
-      const result = await chatAction(user?.uid || 'patient123', userMsg, history);
+      const result = await chatAction(user?.uid || 'patient123', userMsg || 'Prescription attached', history, photo || undefined);
       
       await finishReasoningAnimation();
 
@@ -311,6 +364,9 @@ export function ChatInterface() {
                     ? 'bg-[#4D67F6] text-white rounded-tr-none' 
                     : 'bg-white border border-slate-100 text-[#334155] rounded-tl-none'
                 )}>
+                  {msg.photoDataUri && (
+                    <img src={msg.photoDataUri} alt="Captured Prescription" className="mb-2 rounded-lg max-w-full h-auto border" />
+                  )}
                   <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
                   
                   {msg.role === 'assistant' && msg.orderId && msg.orderDetails && (
@@ -344,6 +400,17 @@ export function ChatInterface() {
         </ScrollArea>
 
         <div className="p-4 border-t bg-white shrink-0">
+          {capturedImage && (
+            <div className="mb-4 relative w-32 h-32 animate-in fade-in zoom-in">
+              <img src={capturedImage} alt="Preview" className="w-full h-full object-cover rounded-lg border-2 border-primary" />
+              <button 
+                onClick={() => setCapturedImage(null)}
+                className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
           <div className="flex gap-2 items-center bg-slate-50 px-3 py-1.5 rounded-xl border">
             <Input
               value={input}
@@ -354,10 +421,19 @@ export function ChatInterface() {
               disabled={isLoading}
             />
             <div className="flex items-center gap-1">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="rounded-full h-8 w-8 text-slate-400 hover:text-primary"
+                onClick={startCamera}
+                disabled={isLoading}
+              >
+                <Camera className="h-4 w-4" />
+              </Button>
               <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-slate-400 hover:text-primary">
                 <Mic className="h-4 w-4" />
               </Button>
-              <Button onClick={handleSend} disabled={isLoading || !input.trim()} size="icon" className="rounded-full h-8 w-8 bg-[#4D67F6] hover:bg-[#3B54D9]">
+              <Button onClick={handleSend} disabled={isLoading || (!input.trim() && !capturedImage)} size="icon" className="rounded-full h-8 w-8 bg-[#4D67F6] hover:bg-[#3B54D9]">
                 <Send className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -402,6 +478,23 @@ export function ChatInterface() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Camera Dialog */}
+      <Dialog open={isCameraOpen} onOpenChange={(open) => !open && stopCamera()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Capture Prescription</DialogTitle>
+          </DialogHeader>
+          <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+            <canvas ref={canvasRef} className="hidden" />
+          </div>
+          <div className="flex justify-center gap-4">
+            <Button variant="outline" onClick={stopCamera}>Cancel</Button>
+            <Button onClick={capturePhoto}>Capture Photo</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

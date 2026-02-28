@@ -36,13 +36,13 @@ export async function getDashboardData() {
   };
 }
 
-export async function chatAction(patientId: string, message: string, history: any[] = []) {
+export async function chatAction(patientId: string, message: string, history: any[] = [], photoDataUri?: string) {
   const trace_id = `tr-${Date.now().toString().slice(-6)}`;
   const lowerMsg = message.toLowerCase();
   
   try {
     // 1. Route to Refill Flow if it specifically sounds like an inquiry about timing/exhaustion
-    if (lowerMsg.includes('when') && (lowerMsg.includes('due') || lowerMsg.includes('refill') || lowerMsg.includes('exhaust'))) {
+    if (!photoDataUri && lowerMsg.includes('when') && (lowerMsg.includes('due') || lowerMsg.includes('refill') || lowerMsg.includes('exhaust'))) {
       const response = await aiPoweredPredictiveRefillInquiry({
         patientId,
         medicineName: message 
@@ -63,7 +63,8 @@ export async function chatAction(patientId: string, message: string, history: an
       patient_id: patientId,
       message,
       history,
-      trace_id
+      trace_id,
+      photoDataUri
     });
 
     return {
