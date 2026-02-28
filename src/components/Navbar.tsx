@@ -1,12 +1,11 @@
-
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MessageSquare, Package, Bell, History, Pill, LogOut, ShieldAlert, Languages } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useUser, useLogout, useFirebase } from '@/firebase/provider';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useFirebase, useLogout } from '@/firebase/provider';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -17,12 +16,56 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+const translations = {
+  EN: {
+    brand: 'Agentic AI Pharmacy',
+    adminSubtitle: 'Supervising Clinical Interface',
+    patientSubtitle: 'Patient Care Portal',
+    nav: {
+      chat: 'AI Chat',
+      inventory: 'Inventory',
+      refills: 'Refills',
+      orders: 'Orders',
+    },
+    account: {
+      security: 'Account Security',
+      loggedInAs: 'Logged in as',
+      logout: 'Logout Session',
+      admin: 'Administrator',
+      patient: 'Patient',
+    },
+    langLabel: 'English',
+    langToggle: 'मराठी (Marathi)'
+  },
+  MR: {
+    brand: 'एआय फार्मसी',
+    adminSubtitle: 'क्लिनिकल इंटरफेस पर्यवेक्षण',
+    patientSubtitle: 'रुग्ण सेवा पोर्टल',
+    nav: {
+      chat: 'एआय चॅट',
+      inventory: 'साठा (Inventory)',
+      refills: 'रिफिल्स',
+      orders: 'ऑर्डर्स',
+    },
+    account: {
+      security: 'खाते सुरक्षा',
+      loggedInAs: 'म्हणून लॉग इन केले',
+      logout: 'सत्रातून बाहेर पडा',
+      admin: 'प्रशासक',
+      patient: 'रुग्ण',
+    },
+    langLabel: 'मराठी',
+    langToggle: 'English'
+  }
+};
+
 export function Navbar() {
   const pathname = usePathname();
   const { user, role, name, language, setLanguage } = useFirebase();
   const logout = useLogout();
 
-  // If on login/signup, don't show the full navbar
+  const t = translations[language as keyof typeof translations] || translations.EN;
+
   const isAuthPage = pathname === '/login' || pathname === '/signup';
   if (isAuthPage) {
     return (
@@ -38,53 +81,48 @@ export function Navbar() {
   }
 
   const links = [
-    { href: '/chat', label: 'AI Chat', icon: MessageSquare, roles: ['user', 'admin'] },
-    { href: '/inventory', label: 'Inventory', icon: Package, roles: ['admin'] },
-    { href: '/refills', label: 'Refills', icon: Bell, roles: ['admin'] },
-    { href: '/orders', label: 'Orders', icon: History, roles: ['admin'] },
+    { href: '/chat', label: t.nav.chat, icon: MessageSquare, roles: ['user', 'admin'] },
+    { href: '/inventory', label: t.nav.inventory, icon: Package, roles: ['admin'] },
+    { href: '/refills', label: t.nav.refills, icon: Bell, roles: ['admin'] },
+    { href: '/orders', label: t.nav.orders, icon: History, roles: ['admin'] },
   ];
+
+  const handleLanguageToggle = () => {
+    setLanguage(language === 'EN' ? 'MR' : 'EN');
+  };
 
   return (
     <div className="flex flex-col w-full bg-white sticky top-0 z-50">
-      {/* Top Brand Header */}
       <header className="border-b px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="bg-[#4D67F6] p-2 rounded-lg text-white shadow-lg">
             <Pill className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-[#1E293B]">Agentic AI Pharmacy</h1>
+            <h1 className="text-xl font-bold tracking-tight text-[#1E293B]">{t.brand}</h1>
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-              {role === 'admin' ? 'Supervising Clinical Interface' : 'Patient Care Portal'}
+              {role === 'admin' ? t.adminSubtitle : t.patientSubtitle}
             </p>
           </div>
         </div>
         
         <div className="flex items-center gap-4">
-          {/* Language Selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="hidden md:flex items-center gap-2 text-slate-500 font-bold border rounded-lg px-3 hover:bg-slate-50">
-                <Languages className="h-4 w-4" />
-                <span className="text-xs">{language}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuLabel>Choose Language</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setLanguage('EN')} className="cursor-pointer font-medium">English</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLanguage('MR')} className="cursor-pointer font-medium">मराठी (Marathi)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLanguage('HI')} className="cursor-pointer font-medium">हिन्दी (Hindi)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLanguage('UR')} className="cursor-pointer font-medium">اردو (Urdu)</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleLanguageToggle}
+            className="hidden md:flex items-center gap-2 text-slate-500 font-bold border rounded-lg px-3 hover:bg-slate-50"
+          >
+            <Languages className="h-4 w-4" />
+            <span className="text-xs">{t.langToggle}</span>
+          </Button>
 
           <div className="text-right hidden sm:block">
             <p className="text-sm font-bold text-[#1E293B]">{name || user?.email?.split('@')[0]}</p>
             <div className="flex items-center justify-end gap-1">
               {role === 'admin' && <ShieldAlert className="h-3 w-3 text-amber-500" />}
               <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
-                {role === 'admin' ? 'Administrator' : 'Patient'}
+                {role === 'admin' ? t.account.admin : t.account.patient}
               </p>
             </div>
           </div>
@@ -100,21 +138,20 @@ export function Navbar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Account Security</DropdownMenuLabel>
+              <DropdownMenuLabel>{t.account.security}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-xs py-3 text-slate-500">
-                Logged in as <span className="font-bold ml-1 text-slate-900">{user?.email}</span>
+                {t.account.loggedInAs} <span className="font-bold ml-1 text-slate-900">{user?.email}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-destructive font-bold cursor-pointer">
-                <LogOut className="mr-2 h-4 w-4" /> Logout Session
+                <LogOut className="mr-2 h-4 w-4" /> {t.account.logout}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </header>
 
-      {/* Secondary Navigation */}
       <nav className="bg-[#F8FAFC] border-b px-8 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-2 h-14">
           {links.filter(link => link.roles.includes(role || 'user')).map(({ href, label, icon: Icon }) => (

@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview CuraCare AI Autonomous Clinical Pharmacist.
@@ -8,7 +7,7 @@
  * 3. check_inventory
  * 4. create_order + update_inventory + trigger_webhook
  *
- * It also supports multilingual responses (Urdu/Hindi/Marathi/English) and multimodal prescription analysis.
+ * It also supports multilingual responses (Marathi/English) and multimodal prescription analysis.
  */
 
 import { ai } from '@/ai/genkit';
@@ -28,7 +27,7 @@ const AutomatedPrescriptionOrderingInputSchema = z.object({
   history: z.array(MessageSchema).optional().describe('The conversation history.'),
   trace_id: z.string().describe('A unique identifier for the current trace/session.'),
   photoDataUri: z.string().optional().describe("A photo of a prescription, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."),
-  preferred_language: z.string().optional().describe('The preferred language for the response (e.g., "English", "Marathi", "Hindi", "Urdu").'),
+  preferred_language: z.string().optional().describe('The preferred language for the response (e.g., "English", "Marathi").'),
 });
 export type AutomatedPrescriptionOrderingInput = z.infer<typeof AutomatedPrescriptionOrderingInputSchema>;
 
@@ -114,7 +113,6 @@ const check_prescription = ai.defineTool(
   async (input) => {
     const med = db.getMedicine(input.medicine_id);
     const required = med?.prescription_required || false;
-    // For prototype, we assume the prescription on file is valid if they confirm it
     return { 
       required, 
       valid: true, 
@@ -184,7 +182,7 @@ const trigger_webhook = ai.defineTool(
     name: 'trigger_webhook',
     description: 'Step 4c: Notifies the warehouse logistics system for dispatch.',
     inputSchema: z.object({ order_id: z.string() }),
-    outputSchema: z.object({ status: z.string(), dispatch_ref: z.string() }),
+    outputSchema: z.object({ status: 'dispatched', dispatch_ref: z.string() }),
   },
   async (input) => {
     const dispatchRef = `WH-${Math.random().toString(36).substring(7).toUpperCase()}`;
@@ -242,7 +240,7 @@ MANDATORY RULES:
 - Never skip Step 2 (Prescription Check).
 - Never skip Step 3 (Inventory Check).
 - Never create an order without explicit confirmation.
-- Respond in the user's preferred language if provided, otherwise detect and respond in (Urdu/Hindi/Marathi/English).
+- Respond in the user's preferred language if provided, otherwise detect and respond in (Marathi/English).
 - If a photo is provided, use it to identify the medicine and dosage.
 
 If the user confirms, you MUST execute all 4 execution tools in Step 4.`,
