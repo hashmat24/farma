@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview CuraCare AI Autonomous Clinical Pharmacist.
@@ -27,6 +28,7 @@ const AutomatedPrescriptionOrderingInputSchema = z.object({
   history: z.array(MessageSchema).optional().describe('The conversation history.'),
   trace_id: z.string().describe('A unique identifier for the current trace/session.'),
   photoDataUri: z.string().optional().describe("A photo of a prescription, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."),
+  preferred_language: z.string().optional().describe('The preferred language for the response (e.g., "English", "Marathi", "Hindi", "Urdu").'),
 });
 export type AutomatedPrescriptionOrderingInput = z.infer<typeof AutomatedPrescriptionOrderingInputSchema>;
 
@@ -240,13 +242,14 @@ MANDATORY RULES:
 - Never skip Step 2 (Prescription Check).
 - Never skip Step 3 (Inventory Check).
 - Never create an order without explicit confirmation.
-- Respond in the user's language (Urdu/Hindi/Marathi/English).
+- Respond in the user's preferred language if provided, otherwise detect and respond in (Urdu/Hindi/Marathi/English).
 - If a photo is provided, use it to identify the medicine and dosage.
 
 If the user confirms, you MUST execute all 4 execution tools in Step 4.`,
   prompt: `Patient ID: {{{patient_id}}}
 User message: {{{message}}}
 Trace ID: {{{trace_id}}}
+{{#if preferred_language}}Preferred Language: {{{preferred_language}}}{{/if}}
 
 {{#if photoDataUri}}Prescription Image: {{media url=photoDataUri}}{{/if}}
 

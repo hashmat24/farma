@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -11,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { useUser } from '@/firebase/provider';
+import { useFirebase } from '@/firebase/provider';
 import {
   Dialog,
   DialogContent,
@@ -97,7 +98,7 @@ function OrderCard({ details, orderId }: { details: Message['orderDetails'], ord
 }
 
 export function ChatInterface() {
-  const { user, name: userName, age: userAge } = useUser();
+  const { user, name: userName, age: userAge, language } = useFirebase();
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -235,10 +236,23 @@ export function ChatInterface() {
     setMessages(prev => [...prev, { role: 'user', content: userMsg || 'Prescription Image Sent', timestamp, photoDataUri: photo || undefined }]);
     setIsLoading(true);
 
+    const langMap: Record<string, string> = {
+      'EN': 'English',
+      'MR': 'Marathi',
+      'HI': 'Hindi',
+      'UR': 'Urdu'
+    };
+
     try {
       runReasoningAnimation();
 
-      const result = await chatAction(user?.uid || 'patient123', userMsg || 'Prescription attached', history, photo || undefined);
+      const result = await chatAction(
+        user?.uid || 'patient123', 
+        userMsg || 'Prescription attached', 
+        history, 
+        photo || undefined,
+        langMap[language] || 'English'
+      );
       
       await finishReasoningAnimation();
 

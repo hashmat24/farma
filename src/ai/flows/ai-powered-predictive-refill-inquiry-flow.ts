@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow for handling patient refill inquiries. It uses a tool to calculate
@@ -18,6 +19,7 @@ const PredictiveRefillInquiryInputSchema = z.object({
   patientId: z.string().describe('The ID of the patient making the inquiry.'),
   medicineName: z.string().optional().describe('The name of the medicine for which to check refill status.'),
   medicineId: z.string().optional().describe('The ID of the medicine for which to check refill status.'),
+  preferred_language: z.string().optional().describe('The preferred language for the response.'),
 });
 
 /**
@@ -145,10 +147,13 @@ Summarize the results clearly and empathetically.
 Format exhaustion dates in a human-readable format (e.g., "January 1, 2024").
 If an alert is triggered (daysLeft <= 2), emphasize this and suggest ordering soon.
 
+Respond in the user's preferred language if provided.
+
 If no information is found, politely inform the user and encourage them to verify the medicine name.`,
   prompt: `Patient ID: {{{patientId}}}
 {{#if medicineName}}Medicine Name: {{{medicineName}}}{{/if}}
 {{#if medicineId}}Medicine ID: {{{medicineId}}}{{/if}}
+{{#if preferred_language}}Preferred Language: {{{preferred_language}}}{{/if}}
 `,
 });
 

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db } from '@/app/lib/db';
@@ -36,7 +37,13 @@ export async function getDashboardData() {
   };
 }
 
-export async function chatAction(patientId: string, message: string, history: any[] = [], photoDataUri?: string) {
+export async function chatAction(
+  patientId: string, 
+  message: string, 
+  history: any[] = [], 
+  photoDataUri?: string,
+  preferredLanguage?: string
+) {
   const trace_id = `tr-${Date.now().toString().slice(-6)}`;
   const lowerMsg = message.toLowerCase();
   
@@ -45,7 +52,8 @@ export async function chatAction(patientId: string, message: string, history: an
     if (!photoDataUri && lowerMsg.includes('when') && (lowerMsg.includes('due') || lowerMsg.includes('refill') || lowerMsg.includes('exhaust'))) {
       const response = await aiPoweredPredictiveRefillInquiry({
         patientId,
-        medicineName: message 
+        medicineName: message,
+        preferred_language: preferredLanguage
       });
       
       const medicines = db.getMedicines();
@@ -64,7 +72,8 @@ export async function chatAction(patientId: string, message: string, history: an
       message,
       history,
       trace_id,
-      photoDataUri
+      photoDataUri,
+      preferred_language: preferredLanguage
     });
 
     return {

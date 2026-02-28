@@ -36,6 +36,8 @@ export interface FirebaseContextState {
   age: number | null;
   isUserLoading: boolean;
   userError: Error | null;
+  language: string;
+  setLanguage: (lang: string) => void;
 }
 
 export interface FirebaseServicesAndUser {
@@ -48,6 +50,8 @@ export interface FirebaseServicesAndUser {
   age: number | null;
   isUserLoading: boolean;
   userError: Error | null;
+  language: string;
+  setLanguage: (lang: string) => void;
 }
 
 export interface UserHookResult {
@@ -78,6 +82,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     isUserLoading: true,
     userError: null,
   });
+
+  const [language, setLanguage] = useState('EN');
 
   useEffect(() => {
     if (!auth) {
@@ -157,8 +163,10 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       age: userAuthState.age,
       isUserLoading: userAuthState.isUserLoading,
       userError: userAuthState.userError,
+      language,
+      setLanguage,
     };
-  }, [firebaseApp, firestore, auth, userAuthState]);
+  }, [firebaseApp, firestore, auth, userAuthState, language]);
 
   return (
     <FirebaseContext.Provider value={contextValue}>
@@ -186,6 +194,8 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     age: context.age,
     isUserLoading: context.isUserLoading,
     userError: context.userError,
+    language: context.language,
+    setLanguage: context.setLanguage,
   };
 };
 

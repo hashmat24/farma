@@ -1,11 +1,12 @@
+
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, MessageSquare, Package, Bell, History, Pill, LogOut, ShieldAlert, Languages } from 'lucide-react';
+import { MessageSquare, Package, Bell, History, Pill, LogOut, ShieldAlert, Languages } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useUser, useLogout } from '@/firebase/provider';
+import { useUser, useLogout, useFirebase } from '@/firebase/provider';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,13 +16,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useState } from 'react';
 
 export function Navbar() {
   const pathname = usePathname();
-  const { user, role, name } = useUser();
+  const { user, role, name, language, setLanguage } = useFirebase();
   const logout = useLogout();
-  const [lang, setLang] = useState('EN');
 
   // If on login/signup, don't show the full navbar
   const isAuthPage = pathname === '/login' || pathname === '/signup';
@@ -67,16 +66,16 @@ export function Navbar() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="hidden md:flex items-center gap-2 text-slate-500 font-bold border rounded-lg px-3 hover:bg-slate-50">
                 <Languages className="h-4 w-4" />
-                <span className="text-xs">{lang}</span>
+                <span className="text-xs">{language}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuLabel>Choose Language</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setLang('EN')} className="cursor-pointer font-medium">English</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLang('MR')} className="cursor-pointer font-medium">मराठी (Marathi)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLang('HI')} className="cursor-pointer font-medium">हिन्दी (Hindi)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLang('UR')} className="cursor-pointer font-medium">اردو (Urdu)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLanguage('EN')} className="cursor-pointer font-medium">English</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLanguage('MR')} className="cursor-pointer font-medium">मराठी (Marathi)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLanguage('HI')} className="cursor-pointer font-medium">हिन्दी (Hindi)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLanguage('UR')} className="cursor-pointer font-medium">اردو (Urdu)</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
