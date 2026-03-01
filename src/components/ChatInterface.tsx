@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -55,6 +56,7 @@ const translations = {
     dailyDose: 'Daily Dose',
     units: 'Units',
     placeOrder: 'Place Order',
+    viewTrace: 'View Live Trace',
     steps: {
       history: 'Retrieving User History',
       extraction: 'Initial Entity Extraction',
@@ -96,6 +98,7 @@ const translations = {
     dailyDose: 'दररोजचा डोस',
     units: 'युनिट्स',
     placeOrder: 'ऑर्डर द्या',
+    viewTrace: 'लाइव्ह ट्रेस पहा',
     steps: {
       history: 'वापरकर्ता इतिहास मिळवत आहे',
       extraction: 'प्रारंभिक घटक माहिती',
@@ -192,6 +195,7 @@ export function ChatInterface() {
   const [reasoningSteps, setReasoningSteps] = useState<ReasoningStep[]>([]);
   const [activeEntities, setActiveEntities] = useState<Message['entities']>(undefined);
   const [displayTraceId, setDisplayTraceId] = useState<string>('');
+  const [currentTraceUrl, setCurrentTraceUrl] = useState<string>('');
   
   // Manual Order State
   const [isManualOrderOpen, setIsManualOrderOpen] = useState(false);
@@ -392,6 +396,10 @@ export function ChatInterface() {
           ...prev,
           ...result.entities
         }));
+      }
+
+      if (result.trace_url) {
+        setCurrentTraceUrl(result.trace_url);
       }
 
       setMessages(prev => [...prev, { 
@@ -678,6 +686,19 @@ export function ChatInterface() {
             <Info className="h-4 w-4 mx-auto mb-2 text-slate-300" />
             <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">{t.auditActive}</p>
             <p className="text-[8px] text-slate-400 mt-1 font-mono">{t.traceId}: {displayTraceId || 'Initializing...'}</p>
+            {currentTraceUrl && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-3 w-full text-[10px] font-bold h-7 gap-1.5"
+                asChild
+              >
+                <a href={currentTraceUrl} target="_blank">
+                  <ExternalLink className="h-3 w-3" />
+                  {t.viewTrace}
+                </a>
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

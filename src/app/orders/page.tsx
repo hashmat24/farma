@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -73,6 +74,11 @@ export default function OrdersPage() {
         description: "The PDF invoice has been generated successfully.",
       });
     }, 1500);
+  };
+
+  const getTraceUrl = (traceId: string) => {
+    const host = 'https://cloud.langfuse.com';
+    return `${host}/project/demo/traces/${traceId}`;
   };
 
   const filteredOrders = orders.filter(o => 
@@ -187,9 +193,9 @@ export default function OrdersPage() {
                     </div>
 
                     <div className="lg:col-span-3 flex flex-col gap-2">
-                      {role === 'admin' && (
+                      {(role === 'admin' || order.trace_id !== 'manual-order') && (
                         <a 
-                          href={`https://cloud.langfuse.com/project/demo/traces/${order.trace_id}`}
+                          href={getTraceUrl(order.trace_id)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-full inline-flex items-center justify-center gap-2 text-xs font-bold border py-2 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
