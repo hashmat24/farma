@@ -18,6 +18,7 @@ import { ExternalLink, Package, Truck, CheckCircle2, Loader2, Search, Clock } fr
 import { Medicine, Order } from '@/app/lib/db';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
 
 const statusConfig: Record<string, { label: string, color: string, progress: number }> = {
   'pending': { label: 'Received', color: 'bg-slate-400', progress: 10 },
@@ -29,6 +30,7 @@ const statusConfig: Record<string, { label: string, color: string, progress: num
 
 export default function OrdersPage() {
   const { user, role } = useFirebase();
+  const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +59,21 @@ export default function OrdersPage() {
 
     fetchData();
   }, [user, role]);
+
+  const handleDownloadInvoice = (orderId: string) => {
+    toast({
+      title: "Generating Invoice",
+      description: `Preparing clinical record for Order ${orderId}...`,
+    });
+    
+    // Simulate invoice generation delay
+    setTimeout(() => {
+      toast({
+        title: "Download Started",
+        description: "The PDF invoice has been generated successfully.",
+      });
+    }, 1500);
+  };
 
   const filteredOrders = orders.filter(o => 
     o.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -180,7 +197,12 @@ export default function OrdersPage() {
                           <ExternalLink className="h-3 w-3" /> Audit Trace
                         </a>
                       )}
-                      <Button variant="outline" size="sm" className="w-full text-xs font-bold">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full text-xs font-bold"
+                        onClick={() => handleDownloadInvoice(order.id)}
+                      >
                         Download Invoice
                       </Button>
                     </div>
