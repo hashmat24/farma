@@ -11,20 +11,11 @@ service cloud.firestore {
      * a high-performance existence check on a dedicated admin roles collection.
      *
      * Data Structure:
+     * - /users/{userId}: Private user profile data.
      * - /medicines/{medicineId}: Publicly readable inventory.
      * - /users/{patientId}/orders/{orderId}: Private patient orders.
      * - /users/{patientId}/orderHistory/{historyId}: Private historical purchase records.
      * - /roles_admin/{uid}: Role-based access control tokens.
-     *
-     * Key Security Decisions:
-     * 1. Authorization Independence: We use hierarchical paths and denormalized 'patientId' 
-     *    fields to ensure ownership can be verified without cross-document lookups (get() calls).
-     * 2. Admin Existence Pattern: Admin status is verified by checking for the existence 
-     *    of a document at /roles_admin/$(request.auth.uid), minimizing rule complexity.
-     * 3. Public Inventory: Medicine details are globally readable to support inventory 
-     *    browsing but strictly admin-writable.
-     * 4. Relational Integrity: On creation of user-scoped data, we enforce that the 
-     *    internal 'patientId' matches the authenticated user and the document path.
      */
 
     // --- GLOBAL HELPER FUNCTIONS ---
@@ -57,11 +48,18 @@ service cloud.firestore {
     // --- COLLECTION RULES ---
 
     /**
+     * @description Rules for user profile documents.
+     * @path /users/{userId}
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+    }
+
+    /**
      * @description Rules for the global medicine inventory. Publicly readable, admin writable.
      * @path /medicines/{medicineId}
-     * @allow (get/list) public access; (create/update/delete) for admins.
-     * @deny (write) for non-admin users or unauthenticated users.
-     * @principle Public Read with Admin-Only Writes.
      */
     match /medicines/{medicineId} {
       allow get, list: if true;
@@ -71,9 +69,6 @@ service cloud.firestore {
     /**
      * @description Rules for patient orders. Accessible by the patient or administrators.
      * @path /users/{patientId}/orders/{orderId}
-     * @allow (create) if the user is the owner and sets their ID correctly; (get/list/update/delete) if user is owner or admin.
-     * @deny (read/write) if the patientId does not match the authenticated user.
-     * @principle Ownership and path-based consistency.
      */
     match /users/{patientId}/orders/{orderId} {
       allow get, list: if isOwner(patientId) || isAdmin();
@@ -85,9 +80,6 @@ service cloud.firestore {
     /**
      * @description Rules for patient order history. Accessible by the patient or administrators.
      * @path /users/{patientId}/orderHistory/{historyId}
-     * @allow (create) if owner and patientId matches; (get/list/update/delete) if owner or admin.
-     * @deny (read/write) if the patientId does not match the authenticated user.
-     * @principle Ownership and path-based consistency.
      */
     match /users/{patientId}/orderHistory/{historyId} {
       allow get, list: if isOwner(patientId) || isAdmin();
@@ -99,9 +91,6 @@ service cloud.firestore {
     /**
      * @description Internal administrative roles collection.
      * @path /roles_admin/{uid}
-     * @allow (get) by signed-in users (to verify their own status).
-     * @deny (list/write) for all users via client SDK; managed via Admin SDK/Console.
-     * @principle Existence-based role management.
      */
     match /roles_admin/{uid} {
       allow get: if isSignedIn();

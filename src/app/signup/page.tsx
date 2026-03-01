@@ -1,12 +1,11 @@
-
 'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { useAuth, useFirestore } from '@/firebase/provider';
+import { doc } from 'firebase/firestore';
+import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,15 +32,18 @@ export default function SignupPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Every signup is a 'user' by default. Admin accounts are predefined.
-      await setDoc(doc(db, 'users', user.uid), {
+      const profileData = {
         uid: user.uid,
         email: user.email,
         name: name,
         age: parseInt(age, 10),
         role: 'user',
         createdAt: new Date().toISOString()
-      });
+      };
+
+      // Use non-blocking update to initialize the user profile.
+      // This initiates the write and leverages optimistic local cache.
+      setDocumentNonBlocking(doc(db, 'users', user.uid), profileData, { merge: true });
       
       router.push('/chat');
     } catch (err: any) {
