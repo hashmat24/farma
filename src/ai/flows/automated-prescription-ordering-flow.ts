@@ -158,7 +158,7 @@ const trigger_webhook = ai.defineTool(
 const send_confirmation_email = ai.defineTool(
   {
     name: 'send_confirmation_email',
-    description: 'Sends a clinical order confirmation email to the patient.',
+    description: 'Sends a clinical order confirmation email to the patient. MANDATORY final step after successful warehouse dispatch.',
     inputSchema: z.object({ 
       patient_id: z.string(), 
       order_id: z.string(), 
@@ -174,7 +174,8 @@ const send_confirmation_email = ai.defineTool(
     const med = db.getMedicine(input.medicine_id);
     
     if (!patient?.email || !med) {
-      span.end({ output: { success: false, message: 'Missing patient or medicine info' } });
+      console.warn(`Email Tool Warning: Missing data for patient ${input.patient_id} or medicine ${input.medicine_id}`);
+      span.end({ output: { success: false, message: 'Missing patient email or medicine info' } });
       return { success: false };
     }
 
@@ -210,14 +211,14 @@ const autonomousPharmacistPrompt = ai.definePrompt({
     send_confirmation_email
   ],
   system: `You are CuraCare AI, a proactive autonomous clinical pharmacist assistant. 
-Follow the 5-step sequence exactly:
-1. Retrieve history & verify prescription.
-2. Check inventory availability.
-3. Confirm with user before creating order.
+You must strictly follow the 5-step sequence for EVERY order:
+1. Retrieve history & verify prescription requirements.
+2. Check inventory availability and price.
+3. Confirm with the patient before finalizing any changes.
 4. Execute mutations: create_order & update_inventory.
-5. Trigger warehouse webhook AND send_confirmation_email immediately.
+5. Trigger warehouse webhook AND THEN call send_confirmation_email.
 
-Always ensure you pass the provided 'trace_id' to every tool call for observability.`,
+CRITICAL: The 'send_confirmation_email' tool is MANDATORY. You must invoke it immediately after 'trigger_webhook' succeeds. Always pass the 'trace_id' to every tool call for observability.`,
   prompt: `Patient ID: {{{patient_id}}}
 User message: {{{message}}}
 Trace ID: {{{trace_id}}}

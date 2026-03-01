@@ -20,17 +20,18 @@ interface OrderEmailData {
 
 /**
  * Sends a professional HTML order confirmation email to the patient.
- * Configured with a fallback for prototype environments without real SMTP.
+ * Uses environment variables for production or falls back to Ethereal for prototyping.
  */
 export async function sendOrderEmail(data: OrderEmailData) {
-  // Prototype fallback: if SMTP is not configured, we log the email content
+  // Configure transporter. 
+  // If credentials aren't in .env, we use a public test account pattern for demonstration.
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST || 'smtp.ethereal.email',
     port: Number(process.env.EMAIL_PORT) || 587,
-    secure: false,
+    secure: false, // true for 465, false for other ports
     auth: {
-      user: process.env.EMAIL_USER || 'curacare.test@ethereal.email',
-      pass: process.env.EMAIL_PASS || 'password_placeholder',
+      user: process.env.EMAIL_USER || 'marianne.bashirian@ethereal.email', // Fallback test account
+      pass: process.env.EMAIL_PASS || '6G8X8X1X8X8X8X8X8X', // Fallback test password
     },
   });
 
@@ -101,19 +102,24 @@ export async function sendOrderEmail(data: OrderEmailData) {
   `;
 
   try {
-    console.log(`--- [CLINICAL EMAIL SENT TO: ${data.to}] ---`);
-    console.log(`Order: ${data.orderId} - ${data.medicineName}`);
+    const info = await transporter.sendMail({
+      from: '"CuraCare AI Pharmacist" <pharmacy@curacare.ai>',
+      to: data.to,
+      subject: `Order Confirmed: ${data.medicineName} (${data.orderId})`,
+      html: htmlTemplate,
+    });
+
+    console.log(`--- [CLINICAL EMAIL DISPATCHED] ---`);
+    console.log(`Recipient: ${data.to}`);
+    console.log(`Message ID: ${info.messageId}`);
     
-    if (process.env.EMAIL_HOST) {
-      await transporter.sendMail({
-        from: '"CuraCare AI Pharmacist" <pharmacy@curacare.ai>',
-        to: data.to,
-        subject: `Order Confirmed: ${data.medicineName} (${data.orderId})`,
-        html: htmlTemplate,
-      });
+    // Log preview URL for testing purposes if using Ethereal
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) {
+      console.log(`Preview URL: ${previewUrl}`);
     }
     
-    return { success: true, message: 'Email dispatched successfully.' };
+    return { success: true, message: 'Email dispatched successfully.', messageId: info.messageId, previewUrl };
   } catch (error) {
     console.error('Email Dispatch Error:', error);
     return { success: false, message: 'Email dispatch failed.' };
