@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity, CheckCircle2, Truck, Camera, X, PlusCircle, ShoppingBag, ArrowRight } from 'lucide-react';
+import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity, CheckCircle2, Truck, Camera, X, PlusCircle, ShoppingBag, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -57,6 +57,7 @@ const translations = {
     units: 'Units',
     placeOrder: 'Place Order',
     viewTrace: 'View Live Trace',
+    liveAudit: 'Live Audit Trace',
     steps: {
       history: 'Retrieving User History',
       extraction: 'Initial Entity Extraction',
@@ -99,6 +100,7 @@ const translations = {
     units: 'युनिट्स',
     placeOrder: 'ऑर्डर द्या',
     viewTrace: 'लाइव्ह ट्रेस पहा',
+    liveAudit: 'थेट ऑडिट ट्रेस',
     steps: {
       history: 'वापरकर्ता इतिहास मिळवत आहे',
       extraction: 'प्रारंभिक घटक माहिती',
@@ -497,18 +499,33 @@ export function ChatInterface() {
                 <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Live Healthcare Sync</p>
               </div>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setIsManualOrderOpen(!isManualOrderOpen)}
-              className={cn(
-                "gap-2 text-xs font-bold transition-all",
-                isManualOrderOpen ? "bg-primary text-white hover:bg-primary/90" : "text-primary border-primary/20"
+            <div className="flex items-center gap-2">
+              {currentTraceUrl && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  asChild
+                  className="gap-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border border-indigo-100 h-9"
+                >
+                  <a href={currentTraceUrl} target="_blank">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    {t.liveAudit}
+                  </a>
+                </Button>
               )}
-            >
-              <ShoppingBag className="h-3.5 w-3.5" />
-              {t.manualOrder}
-            </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setIsManualOrderOpen(!isManualOrderOpen)}
+                className={cn(
+                  "gap-2 text-xs font-bold transition-all h-9",
+                  isManualOrderOpen ? "bg-primary text-white hover:bg-primary/90" : "text-primary border-primary/20"
+                )}
+              >
+                <ShoppingBag className="h-3.5 w-3.5" />
+                {t.manualOrder}
+              </Button>
+            </div>
           </div>
 
           <ScrollArea className="flex-1 min-h-0 bg-slate-50/30">
