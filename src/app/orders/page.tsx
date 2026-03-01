@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ExternalLink, Package, Truck, CheckCircle2, Loader2, Search, Clock } from 'lucide-react';
 import { Medicine, Order } from '@/app/lib/db';
 import { cn } from '@/lib/utils';
