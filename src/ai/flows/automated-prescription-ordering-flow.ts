@@ -11,7 +11,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { db } from '@/app/lib/db';
 
 // --- Schema Definitions ---
