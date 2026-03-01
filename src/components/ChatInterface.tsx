@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity, CheckCircle2, Truck, Camera, X, PlusCircle, ShoppingBag, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Send, Mic, MicOff, ExternalLink, Loader2, Info, User, ClipboardList, Activity, CheckCircle2, Truck, Camera, X, PlusCircle, ShoppingBag, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -58,6 +58,8 @@ const translations = {
     placeOrder: 'Place Order',
     viewTrace: 'View Live Trace',
     liveAudit: 'Live Audit Trace',
+    listening: 'Listening...',
+    micError: 'Microphone access denied or not supported.',
     steps: {
       history: 'Retrieving User History',
       extraction: 'Initial Entity Extraction',
@@ -101,6 +103,8 @@ const translations = {
     placeOrder: 'ऑर्डर द्या',
     viewTrace: 'लाइव्ह ट्रेस पहा',
     liveAudit: 'थेट ऑडिट ट्रेस',
+    listening: 'ऐकत आहे...',
+    micError: 'मायक्रोफोन प्रवेश नाकारला किंवा समर्थित नाही.',
     steps: {
       history: 'वापरकर्ता इतिहास मिळवत आहे',
       extraction: 'प्रारंभिक घटक माहिती',
@@ -198,6 +202,7 @@ export function ChatInterface() {
   const [activeEntities, setActiveEntities] = useState<Message['entities']>(undefined);
   const [displayTraceId, setDisplayTraceId] = useState<string>('');
   const [currentTraceUrl, setCurrentTraceUrl] = useState<string>('');
+  const [isListening, setIsListening] = useState(false);
   
   // Manual Order State
   const [isManualOrderOpen, setIsManualOrderOpen] = useState(false);
@@ -264,6 +269,39 @@ export function ChatInterface() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading, scrollToBottom]);
+
+  // Voice Recognition Logic
+  const toggleListening = () => {
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast({ variant: 'destructive', title: 'Error', description: t.micError });
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = lang === 'EN' ? 'en-US' : 'mr-IN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => {
+      setIsListening(false);
+      toast({ variant: 'destructive', title: 'Error', description: t.micError });
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInput(prev => (prev ? `${prev} ${transcript}` : transcript));
+    };
+
+    recognition.start();
+  };
 
   const startCamera = async () => {
     setIsCameraOpen(true);
@@ -590,11 +628,26 @@ export function ChatInterface() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder={t.placeholder}
-                className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 px-0 h-9 text-sm"
+                placeholder={isListening ? t.listening : t.placeholder}
+                className={cn(
+                  "flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 px-0 h-9 text-sm",
+                  isListening && "animate-pulse font-medium text-primary"
+                )}
                 disabled={isLoading}
               />
               <div className="flex items-center gap-1">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className={cn(
+                    "rounded-full h-8 w-8 transition-colors",
+                    isListening ? "bg-primary/10 text-primary" : "text-slate-400 hover:text-primary"
+                  )}
+                  onClick={toggleListening}
+                  disabled={isLoading}
+                >
+                  {isListening ? <Mic className="h-4 w-4 animate-bounce" /> : <Mic className="h-4 w-4" />}
+                </Button>
                 <Button 
                   variant="ghost" 
                   size="icon" 
