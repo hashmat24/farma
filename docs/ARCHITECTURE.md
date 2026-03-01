@@ -1,59 +1,34 @@
-# CuraCare AI: Technical Architecture Document
+# CuraCare AI: Enterprise Technical Architecture
 
-## 1. SYSTEM OVERVIEW
-CuraCare AI is an agentic healthcare system that leverages LLM-based orchestration to automate pharmaceutical inventory and patient order management. It uses a **Next.js 15** frontend and backend (Server Actions), with **Genkit 1.x** managing the AI's tool-calling logic and **Firestore** as the primary data layer.
+## 1. MISSION STATEMENT
+CuraCare AI is an enterprise-grade agentic healthcare system. It automates pharmaceutical inventory and patient order management using a "Clinical Safety Gate" pattern, ensuring LLM-based decisions are grounded in real-time database state and medical compliance.
 
-## 2. FOLDER STRUCTURE
-- `src/ai/`: Contains Genkit configuration and AI flows. The "Brain" of the system.
-- `src/app/actions/`: Server-side functions (Next.js Server Actions) that bridge the UI and AI flows.
-- `src/app/lib/`: Database interface and shared business logic.
-- `src/components/`: Reusable UI components (React).
-- `src/firebase/`: Real-time listeners and Firebase SDK initialization.
+## 2. ENTERPRISE TECH STACK
+- **Orchestration**: Next.js 15 (App Router) using Server Actions for end-to-end TypeScript safety.
+- **AI Brain**: Firebase Genkit 1.x — manages tool-calling logic, schema validation, and multimodal processing.
+- **Intelligence**: Google Gemini 1.5 Flash — utilized for high-speed clinical reasoning and large context processing.
+- **Data Layer**: Cloud Firestore — provides real-time state synchronization between patients and the warehouse.
+- **Observability**: Langfuse — provides a full audit trail (traces) for every pharmaceutical transaction.
+- **Design System**: ShadCN UI & Tailwind CSS — ensures accessibility and responsive performance.
 
-## 3. FRONTEND ARCHITECTURE
-- **React 19**: Utilizes concurrent rendering and server actions.
-- **State Flow**: The UI captures user input -> Server Action -> AI Flow -> Result -> UI State Update.
-- **Reasoning Panel**: A dedicated component that visualizes the simulated "Chain of Thought" by mapping tool executions to UI indicators.
+## 3. CORE ARCHITECTURAL PATTERNS
 
-## 4. BACKEND ARCHITECTURE (Next.js Server Actions)
-- **No FastAPI**: We do not use FastAPI or any external Python backends.
-- **Server Actions**: Functions are exported with `'use server'` and called directly from Client Components. This provides end-to-end TypeScript safety.
-- **Execution Flow**: Each action initializes the Genkit environment and passes execution to a specific **Flow**.
+### A. The "Clinical Safety Gate"
+The AI is strictly forbidden from executing mutations (`create_order`) without first passing through validation tools (`check_prescription`, `check_inventory`). This is enforced at the Genkit Flow level.
 
-## 5. DATABASE DESIGN
-- **No SQLite**: We use **Firestore** for its real-time capabilities and seamless integration with Firebase Auth.
-- **Medicines**: Stores metadata, pricing, and stock levels.
-- **Patients**: Stores history and membership data.
-- **Orders**: Relational link between Patients and Medicines.
-- **Refill Logic**: Calculated in `db.ts` based on order timestamps and dosage.
+### B. API-Less Backend
+We eliminate the overhead of FastAPI or external REST servers by using Next.js Server Actions. This allows the AI flows to call database functions directly with shared TypeScript interfaces.
 
-## 6. AI ORCHESTRATION LAYER (Firebase Genkit)
-- **Model**: Gemini 1.5 Flash (via `@genkit-ai/google-genai`).
-- **Tool Calling**: Genkit's `ai.defineTool` manages the interface between the LLM and TypeScript functions.
-- **Execution Flow**:
-  1. Prompt receives User Input.
-  2. LLM emits a tool call (e.g., `check_inventory`).
-  3. Genkit executes the TypeScript function.
-  4. Genkit sends result back to LLM.
-  5. LLM generates final response.
+### C. Observability & Auditability
+Every order record contains a `trace_id`. This links the physical order to the specific LLM reasoning chain in Langfuse, satisfying healthcare requirements for decision transparency.
 
-## 7. AGENTIC DESIGN PATTERN
-- **Autonomy**: The agent determines the order of operations based on clinical requirements.
-- **Tool Augmentation**: The LLM must query the `check_inventory` tool to be grounded in reality.
-- **Safety Gates**: The LLM is strictly forbidden from calling `create_order` without first calling `check_prescription`.
+## 4. DATA MODEL (High Level)
+- **Medicines**: Metadata, clinical descriptions, pricing, and stock levels.
+- **Patients**: Medical history and membership data.
+- **Orders**: Relational link between Patients and Medicines, including status and trace metadata.
+- **Refills**: Predictive logic calculated from order frequency and unit dosage.
 
-## 8. OBSERVABILITY (Langfuse)
-- **Audit Trail**: Every AI interaction generates a `trace_id`.
-- **Relational Traceability**: Order records store this `trace_id` for compliance and clinical auditing.
-- **Integration**: The UI provides deep-links to the Langfuse dashboard to audit the LLM's clinical reasoning steps.
-
-## 9. SAFETY & VALIDATION
-- **Zod Schemas**: Every tool and flow has strict input/output validation via Zod.
-- **System Instructions**: The "OPERATIONAL STATE MACHINE" in the system prompt ensures the AI follows mandatory clinical guidelines.
-
-## 10. TECH STACK SUMMARY
-- **Frontend/Backend**: Next.js 15 (App Router)
-- **AI Framework**: Firebase Genkit 1.x
-- **Database**: Firestore (Mocked for Prototype)
-- **Styling**: Tailwind CSS + ShadCN UI
-- **Observability**: Langfuse
+## 5. INFRASTRUCTURE
+- **Hosting**: Firebase App Hosting.
+- **Auth**: Firebase Authentication (Email/Pass & Anonymous).
+- **Security**: Firestore Security Rules (Path-based ownership & Admin markers).
