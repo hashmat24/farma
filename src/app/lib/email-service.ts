@@ -1,5 +1,7 @@
 
-import nodemailer from 'nodemailer';
+'use server';
+
+import * as nodemailer from 'nodemailer';
 
 /**
  * @fileOverview Clinical email notification service for CuraCare AI.
@@ -99,7 +101,6 @@ export async function sendOrderEmail(data: OrderEmailData) {
   `;
 
   try {
-    // In prototype mode, we simulate the send and log it
     console.log(`--- [CLINICAL EMAIL SENT TO: ${data.to}] ---`);
     console.log(`Order: ${data.orderId} - ${data.medicineName}`);
     

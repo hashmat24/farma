@@ -234,7 +234,6 @@ const automatedPrescriptionOrderingFlow = ai.defineFlow(
     outputSchema: AutonomousPharmacistOutputSchema,
   },
   async (input) => {
-    // Initialize Langfuse Trace for project "Eyes"
     const trace = langfuse.trace({
       name: 'autonomousPharmacistFlow',
       id: input.trace_id,
@@ -253,7 +252,6 @@ const automatedPrescriptionOrderingFlow = ai.defineFlow(
       trace.update({ output: { error: error.message } });
       throw error;
     } finally {
-      // Ensure data is sent to Langfuse
       await langfuse.flush();
     }
   }
