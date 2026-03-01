@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity, CheckCircle2, Truck, Camera, X } from 'lucide-react';
+import { Send, Mic, ExternalLink, Loader2, Info, User, ClipboardList, Activity, CheckCircle2, Truck, Camera, X, PlusCircle, ShoppingBag, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { chatAction, getPatientInfo } from '@/app/actions/pharmacy';
+import { chatAction, getPatientInfo, getInventory, createManualOrderAction } from '@/app/actions/pharmacy';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from '@/components/ui/label';
 
 const translations = {
   EN: {
@@ -42,6 +50,11 @@ const translations = {
     auditActive: 'Auditability Active',
     traceId: 'Trace ID',
     noHistory: 'No clinical history on file',
+    manualOrder: 'Manual Order',
+    selectMedicine: 'Select Medicine',
+    dailyDose: 'Daily Dose',
+    units: 'Units',
+    placeOrder: 'Place Order',
     steps: {
       history: 'Retrieving User History',
       extraction: 'Initial Entity Extraction',
@@ -78,6 +91,11 @@ const translations = {
     auditActive: 'ऑडिटेबिलिटी सक्रिय',
     traceId: 'ट्रेस आयडी',
     noHistory: 'फाइलवर वैद्यकीय इतिहास नाही',
+    manualOrder: 'मॅन्युअल ऑर्डर',
+    selectMedicine: 'औषध निवडा',
+    dailyDose: 'दररोजचा डोस',
+    units: 'युनिट्स',
+    placeOrder: 'ऑर्डर द्या',
     steps: {
       history: 'वापरकर्ता इतिहास मिळवत आहे',
       extraction: 'प्रारंभिक घटक माहिती',
@@ -174,6 +192,13 @@ export function ChatInterface() {
   const [reasoningSteps, setReasoningSteps] = useState<ReasoningStep[]>([]);
   const [activeEntities, setActiveEntities] = useState<Message['entities']>(undefined);
   const [displayTraceId, setDisplayTraceId] = useState<string>('');
+  
+  // Manual Order State
+  const [isManualOrderOpen, setIsManualOrderOpen] = useState(false);
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [selectedMedId, setSelectedMedId] = useState('');
+  const [orderQty, setOrderQty] = useState('1');
+  const [dailyDose, setDailyDose] = useState('1 per day');
 
   const lang = (language as 'EN' | 'MR') || 'EN';
   const t = translations[lang];
@@ -220,6 +245,8 @@ export function ChatInterface() {
         });
       }
     });
+
+    getInventory().then(setInventory);
   }, [user, userName, userAge, language]);
 
   const scrollToBottom = useCallback(() => {
@@ -296,6 +323,33 @@ export function ChatInterface() {
     setReasoningSteps([...steps]);
   };
 
+  const handleManualOrder = async () => {
+    if (!selectedMedId || isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      const patientId = user?.uid || 'patient123';
+      const result = await createManualOrderAction(patientId, selectedMedId, parseInt(orderQty, 10), dailyDose);
+      
+      const assistantTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: lang === 'EN' ? `Manual order for ${result.order_details.medicineName} has been processed successfully.` : `${result.order_details.medicineName} साठी मॅन्युअल ऑर्डर यशस्वीरित्या प्रक्रिया केली गेली आहे.`,
+        timestamp: assistantTimestamp,
+        orderId: result.order_id,
+        orderDetails: result.order_details
+      }]);
+      
+      setIsManualOrderOpen(false);
+      toast({ title: t.orderConfirmed, description: result.order_details.medicineName });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Order Failed', description: err.message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSend = async () => {
     if ((!input.trim() && !capturedImage) || isLoading) return;
 
@@ -361,7 +415,7 @@ export function ChatInterface() {
   if (!mounted) return null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full lg:h-[calc(100vh-200px)] min-h-0 overflow-hidden lg:overflow-visible">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full lg:h-[calc(100vh-200px)] min-h-0 overflow-hidden lg:overflow-visible pb-20">
       <Card className="order-2 lg:order-1 lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col min-h-[300px] lg:min-h-0">
         <CardHeader className="pb-4 bg-slate-50/50 shrink-0 border-b">
           <CardTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
@@ -425,100 +479,171 @@ export function ChatInterface() {
         </CardContent>
       </Card>
 
-      <Card className="order-1 lg:order-2 lg:col-span-6 flex flex-col border-none shadow-lg overflow-hidden bg-white h-[60vh] lg:h-full min-h-0">
-        <div className="p-4 border-b bg-white flex items-center justify-between shrink-0">
-          <div>
-            <h2 className="text-lg font-bold text-[#1E293B]">AI Pharmacist</h2>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Live Healthcare Sync</p>
+      <div className="order-1 lg:order-2 lg:col-span-6 flex flex-col gap-4 min-h-0">
+        <Card className="flex flex-1 flex-col border-none shadow-lg overflow-hidden bg-white min-h-0">
+          <div className="p-4 border-b bg-white flex items-center justify-between shrink-0">
+            <div>
+              <h2 className="text-lg font-bold text-[#1E293B]">AI Pharmacist</h2>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Live Healthcare Sync</p>
+              </div>
             </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsManualOrderOpen(!isManualOrderOpen)}
+              className={cn(
+                "gap-2 text-xs font-bold transition-all",
+                isManualOrderOpen ? "bg-primary text-white hover:bg-primary/90" : "text-primary border-primary/20"
+              )}
+            >
+              <ShoppingBag className="h-3.5 w-3.5" />
+              {t.manualOrder}
+            </Button>
           </div>
-        </div>
 
-        <ScrollArea className="flex-1 min-h-0 bg-slate-50/30">
-          <div className="p-4 lg:p-6 space-y-6">
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                <div className={cn(
-                  "px-4 py-3 max-w-[90%] lg:max-w-[85%] text-sm rounded-2xl shadow-sm",
-                  msg.role === 'user' 
-                    ? 'bg-[#4D67F6] text-white rounded-tr-none' 
-                    : 'bg-white border border-slate-100 text-[#334155] rounded-tl-none'
-                )}>
-                  {msg.photoDataUri && (
-                    <img src={msg.photoDataUri} alt="Captured Prescription" className="mb-2 rounded-lg max-w-full h-auto border" />
-                  )}
-                  <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
-                  
-                  {msg.role === 'assistant' && msg.orderId && msg.orderDetails && (
-                    <OrderCard details={msg.orderDetails} orderId={msg.orderId} lang={lang} />
-                  )}
-
+          <ScrollArea className="flex-1 min-h-0 bg-slate-50/30">
+            <div className="p-4 lg:p-6 space-y-6">
+              {messages.map((msg, i) => (
+                <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <div className={cn(
-                    "mt-2 text-[10px] flex items-center justify-between gap-4 font-bold uppercase tracking-wider",
-                    msg.role === 'user' ? "text-white/60" : "text-slate-400"
+                    "px-4 py-3 max-w-[90%] lg:max-w-[85%] text-sm rounded-2xl shadow-sm",
+                    msg.role === 'user' 
+                      ? 'bg-[#4D67F6] text-white rounded-tr-none' 
+                      : 'bg-white border border-slate-100 text-[#334155] rounded-tl-none'
                   )}>
-                    <span>{msg.timestamp}</span>
-                    {msg.traceUrl && (
-                      <a href={msg.traceUrl} target="_blank" className="flex items-center gap-1 hover:text-primary transition-colors">
-                        <ExternalLink className="h-3 w-3" /> Langfuse Trace
-                      </a>
+                    {msg.photoDataUri && (
+                      <img src={msg.photoDataUri} alt="Captured Prescription" className="mb-2 rounded-lg max-w-full h-auto border" />
                     )}
+                    <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+                    
+                    {msg.role === 'assistant' && msg.orderId && msg.orderDetails && (
+                      <OrderCard details={msg.orderDetails} orderId={msg.orderId} lang={lang} />
+                    )}
+
+                    <div className={cn(
+                      "mt-2 text-[10px] flex items-center justify-between gap-4 font-bold uppercase tracking-wider",
+                      msg.role === 'user' ? "text-white/60" : "text-slate-400"
+                    )}>
+                      <span>{msg.timestamp}</span>
+                      {msg.traceUrl && (
+                        <a href={msg.traceUrl} target="_blank" className="flex items-center gap-1 hover:text-primary transition-colors">
+                          <ExternalLink className="h-3 w-3" /> Langfuse Trace
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            {isLoading && (
-              <div className="flex flex-col items-start animate-in fade-in slide-in-from-left-2">
-                <div className="bg-white border rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-3">
-                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{t.thinking}</span>
+              ))}
+              {isLoading && (
+                <div className="flex flex-col items-start animate-in fade-in slide-in-from-left-2">
+                  <div className="bg-white border rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-3">
+                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{t.thinking}</span>
+                  </div>
                 </div>
+              )}
+              <div ref={scrollRef} />
+            </div>
+          </ScrollArea>
+
+          <div className="p-4 border-t bg-white shrink-0">
+            {capturedImage && (
+              <div className="mb-4 relative w-32 h-32 animate-in fade-in zoom-in">
+                <img src={capturedImage} alt="Preview" className="w-full h-full object-cover rounded-lg border-2 border-primary" />
+                <button 
+                  onClick={() => setCapturedImage(null)}
+                  className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1"
+                >
+                  <X className="h-3 w-3" />
+                </button>
               </div>
             )}
-            <div ref={scrollRef} />
-          </div>
-        </ScrollArea>
-
-        <div className="p-4 border-t bg-white shrink-0">
-          {capturedImage && (
-            <div className="mb-4 relative w-32 h-32 animate-in fade-in zoom-in">
-              <img src={capturedImage} alt="Preview" className="w-full h-full object-cover rounded-lg border-2 border-primary" />
-              <button 
-                onClick={() => setCapturedImage(null)}
-                className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          )}
-          <div className="flex gap-2 items-center bg-slate-50 px-3 py-1.5 rounded-xl border">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={t.placeholder}
-              className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 px-0 h-9 text-sm"
-              disabled={isLoading}
-            />
-            <div className="flex items-center gap-1">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="rounded-full h-8 w-8 text-slate-400 hover:text-primary"
-                onClick={startCamera}
+            <div className="flex gap-2 items-center bg-slate-50 px-3 py-1.5 rounded-xl border">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder={t.placeholder}
+                className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 px-0 h-9 text-sm"
                 disabled={isLoading}
-              >
-                <Camera className="h-4 w-4" />
-              </Button>
-              <Button onClick={handleSend} disabled={isLoading || (!input.trim() && !capturedImage)} size="icon" className="rounded-full h-8 w-8 bg-[#4D67F6] hover:bg-[#3B54D9]">
-                <Send className="h-3.5 w-3.5" />
-              </Button>
+              />
+              <div className="flex items-center gap-1">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-full h-8 w-8 text-slate-400 hover:text-primary"
+                  onClick={startCamera}
+                  disabled={isLoading}
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+                <Button onClick={handleSend} disabled={isLoading || (!input.trim() && !capturedImage)} size="icon" className="rounded-full h-8 w-8 bg-[#4D67F6] hover:bg-[#3B54D9]">
+                  <Send className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+
+        {isManualOrderOpen && (
+          <Card className="border-2 border-primary/10 shadow-xl bg-white animate-in slide-in-from-bottom-4 duration-300">
+            <CardHeader className="py-3 px-4 bg-slate-50/50 border-b">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <PlusCircle className="h-4 w-4 text-primary" /> {t.manualOrder}
+                </CardTitle>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsManualOrderOpen(false)}>
+                  <X className="h-3.5 w-3.5 text-slate-400" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase">{t.selectMedicine}</Label>
+                <Select value={selectedMedId} onValueChange={setSelectedMedId}>
+                  <SelectTrigger className="h-9 text-xs bg-slate-50">
+                    <SelectValue placeholder={t.selectMedicine} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inventory.map(med => (
+                      <SelectItem key={med.id} value={med.id}>{med.name} ({med.dosage})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase">{t.units}</Label>
+                <Input 
+                  type="number" 
+                  value={orderQty} 
+                  onChange={(e) => setOrderQty(e.target.value)}
+                  className="h-9 text-xs bg-slate-50"
+                  min="1"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase">{t.dailyDose}</Label>
+                <Input 
+                  value={dailyDose} 
+                  onChange={(e) => setDailyDose(e.target.value)}
+                  placeholder="e.g. 1 per day"
+                  className="h-9 text-xs bg-slate-50"
+                />
+              </div>
+              <Button 
+                onClick={handleManualOrder} 
+                disabled={!selectedMedId || isLoading}
+                className="h-9 bg-primary text-white font-bold text-xs gap-2"
+              >
+                {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShoppingBag className="h-3.5 w-3.5" />}
+                {t.placeOrder}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <Card className="order-3 lg:col-span-3 border-none shadow-sm bg-white overflow-hidden flex flex-col min-h-[300px] lg:min-h-0">
         <CardHeader className="pb-4 bg-slate-50/50 shrink-0 border-b">

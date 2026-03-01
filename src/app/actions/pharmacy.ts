@@ -1,7 +1,6 @@
-
 'use server';
 
-import { db } from '@/app/lib/db';
+import { db, Order } from '@/app/lib/db';
 import { automatedPrescriptionOrdering } from '@/ai/flows/automated-prescription-ordering-flow';
 import { aiPoweredPredictiveRefillInquiry } from '@/ai/flows/ai-powered-predictive-refill-inquiry-flow';
 
@@ -116,4 +115,35 @@ export async function updateInventory(medicineId: string, qtyToReduce: number) {
 
 export async function getRefillAlerts(patientId: string) {
   return db.calculateRefills(patientId).filter(a => a.alert);
+}
+
+export async function createManualOrderAction(patientId: string, medicineId: string, quantity: number, dosage: string) {
+  const med = db.getMedicine(medicineId);
+  if (!med) throw new Error('Medicine not found');
+  if (med.stock_qty < quantity) throw new Error('Insufficient stock');
+
+  const orderId = `ORD-${Date.now().toString().slice(-6)}`;
+  const order: Order = {
+    id: orderId,
+    patient_id: patientId,
+    medicine_id: medicineId,
+    qty: quantity,
+    date: new Date().toISOString(),
+    status: 'processing',
+    trace_id: 'manual-order',
+    total_price: med.unit_price * quantity
+  };
+
+  db.addOrder(order);
+  db.updateStock(medicineId, quantity);
+
+  return {
+    order_id: orderId,
+    order_details: {
+      medicineName: med.name,
+      qty: quantity,
+      totalPrice: order.total_price,
+      deliveryDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
+    }
+  };
 }
