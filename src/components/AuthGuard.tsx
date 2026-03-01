@@ -6,7 +6,7 @@ import { useUser } from '@/firebase/provider';
 import { Loader2 } from 'lucide-react';
 
 const PUBLIC_PATHS = ['/login', '/signup'];
-const ADMIN_PATHS = ['/inventory', '/refills', '/admin'];
+const ADMIN_PATHS = ['/inventory', '/admin']; // Removed /refills to allow patient access
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, role, isUserLoading } = useUser();
