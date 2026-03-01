@@ -1,82 +1,10 @@
 {
   "entities": {
-    "UserProfile": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "UserProfile",
-      "type": "object",
-      "description": "Represents a user of the CuraCare AI application, serving as both an authenticated user and a patient.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the UserProfile entity."
-        },
-        "email": {
-          "type": "string",
-          "description": "The user's email address, used for login and as a unique identifier.",
-          "format": "email"
-        },
-        "firstName": {
-          "type": "string",
-          "description": "The first name of the user."
-        },
-        "lastName": {
-          "type": "string",
-          "description": "The last name of the user."
-        },
-        "roleId": {
-          "type": "string",
-          "description": "Reference to the Role entity, defining the user's access privileges. (Relationship: Role 1:N UserProfile)"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the user profile was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the user profile was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "email",
-        "firstName",
-        "lastName",
-        "roleId",
-        "createdAt"
-      ]
-    },
-    "Role": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Role",
-      "type": "object",
-      "description": "Defines distinct access levels and permissions within the application (e.g., 'Admin', 'Customer').",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Role entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the role (e.g., 'Admin', 'Customer'). Must be unique."
-        },
-        "description": {
-          "type": "string",
-          "description": "A detailed description of the privileges associated with this role."
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "description"
-      ]
-    },
     "Medicine": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Medicine",
       "type": "object",
-      "description": "Details about a specific medicine available in the inventory, loaded from 'medicine_master.xlsx'.",
+      "description": "Represents a pharmaceutical medicine with its details, current stock levels, and prescription requirements.",
       "properties": {
         "id": {
           "type": "string",
@@ -86,90 +14,130 @@
           "type": "string",
           "description": "The commercial or generic name of the medicine."
         },
-        "description": {
+        "dosage": {
           "type": "string",
-          "description": "A detailed description of the medicine, including its uses and other relevant information."
+          "description": "Standard dosage information for the medicine (e.g., '50mg', '1 tablet daily'), used for refill calculations."
         },
-        "dosageInstructions": {
-          "type": "string",
-          "description": "Human-readable instructions on how the medicine should be taken (e.g., 'Take 1 tablet daily', '5mg twice a day')."
-        },
-        "baseDosagePerDay": {
+        "stockQty": {
           "type": "number",
-          "description": "The numerical base dosage quantity expected to be consumed per day. Used in predictive refill calculations (e.g., 1 for '1 tablet daily', 2 for '5mg twice a day' if a unit is 5mg)."
-        },
-        "price": {
-          "type": "number",
-          "description": "The price of a single unit of the medicine."
-        },
-        "stockQuantity": {
-          "type": "number",
-          "description": "The current number of units of the medicine available in physical stock."
-        },
-        "reorderThreshold": {
-          "type": "number",
-          "description": "The minimum stock quantity level at which an alert for reordering should be triggered."
+          "description": "The current quantity of this medicine available in stock."
         },
         "prescriptionRequired": {
           "type": "boolean",
-          "description": "A flag indicating whether a valid prescription is required to purchase this medicine."
+          "description": "Indicates whether a prescription is legally required to dispense this medicine."
+        },
+        "reorderThreshold": {
+          "type": "number",
+          "description": "The minimum stock quantity at which a low stock alert should be triggered for this medicine."
         }
       },
       "required": [
         "id",
         "name",
-        "dosageInstructions",
-        "baseDosagePerDay",
-        "price",
-        "stockQuantity",
-        "reorderThreshold",
-        "prescriptionRequired"
+        "dosage",
+        "stockQty",
+        "prescriptionRequired",
+        "reorderThreshold"
       ]
     },
     "Order": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Order",
       "type": "object",
-      "description": "Records details of a medicine purchase made by a user, loaded from 'order_history.xlsx'.",
+      "description": "Represents a single new order placed by a patient for a specific medicine, tracking its processing and fulfillment status.",
       "properties": {
         "id": {
           "type": "string",
           "description": "Unique identifier for the Order entity."
         },
-        "userId": {
+        "patientId": {
           "type": "string",
-          "description": "Reference to the UserProfile (patient) who placed this order. (Relationship: UserProfile 1:N Order)"
+          "description": "Identifier for the patient who placed the order. (Relationship: Patient 1:N Order)"
         },
         "medicineId": {
           "type": "string",
-          "description": "Reference to the Medicine purchased in this order. (Relationship: Medicine 1:N Order)"
+          "description": "Reference to the Medicine that was ordered. (Relationship: Medicine 1:N Order)"
         },
         "quantity": {
           "type": "number",
-          "description": "The total number of units of the medicine purchased in this specific order."
+          "description": "The quantity of the medicine ordered in this transaction."
         },
         "orderDate": {
           "type": "string",
-          "description": "The date and time when this order was placed or recorded.",
+          "description": "The timestamp when the order was placed.",
           "format": "date-time"
         },
         "status": {
           "type": "string",
-          "description": "The current status of the order (e.g., 'Pending', 'Dispatched', 'Delivered', 'Cancelled')."
+          "description": "The current processing status of the order (e.g., 'pending', 'dispatched', 'completed', 'failed', 'webhook_failed')."
         },
         "traceId": {
           "type": "string",
-          "description": "The Langfuse trace ID associated with the specific AI interaction that initiated or processed this order."
+          "description": "The Langfuse trace identifier associated with the AI agent's execution for this order."
+        },
+        "webhookDispatched": {
+          "type": "boolean",
+          "description": "Indicates if the warehouse fulfillment webhook was successfully triggered for this order."
+        },
+        "webhookError": {
+          "type": "string",
+          "description": "Stores any error message if the warehouse fulfillment webhook failed."
         }
       },
       "required": [
         "id",
-        "userId",
+        "patientId",
         "medicineId",
         "quantity",
         "orderDate",
         "status",
-        "traceId"
+        "traceId",
+        "webhookDispatched"
+      ]
+    },
+    "OrderHistory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "OrderHistory",
+      "type": "object",
+      "description": "A historical record of patient medicine purchases, primarily used for predictive refill calculations. This entity may contain pre-existing data loaded from a master file or derived from processed orders.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this specific historical purchase record."
+        },
+        "patientId": {
+          "type": "string",
+          "description": "Identifier for the patient associated with this historical purchase. (Relationship: Patient 1:N OrderHistory)"
+        },
+        "medicineId": {
+          "type": "string",
+          "description": "Reference to the Medicine that was purchased in this historical record. (Relationship: Medicine 1:N OrderHistory)"
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Optional reference to the original Order if this history record originated from a processed order. Can be null for pre-loaded historical data. (Relationship: Order 1:0..1 OrderHistory)"
+        },
+        "quantityPurchased": {
+          "type": "number",
+          "description": "The quantity of medicine purchased in this historical record."
+        },
+        "purchaseDate": {
+          "type": "string",
+          "description": "The date and time when this historical purchase occurred.",
+          "format": "date-time"
+        },
+        "dosageAtPurchase": {
+          "type": "string",
+          "description": "The dosage information of the medicine at the time of this historical purchase, critical for accurate refill predictions."
+        }
+      },
+      "required": [
+        "id",
+        "patientId",
+        "medicineId",
+        "quantityPurchased",
+        "purchaseDate",
+        "dosageAtPurchase"
       ]
     }
   },
@@ -182,90 +150,62 @@
   "firestore": {
     "structure": [
       {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "UserProfile",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "Stores individual user profile data. Each document is identified by the user's authentication UID. Access is restricted to the owning user or administrators.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user, matching `request.auth.uid`."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/roles_admin/{adminId}",
-        "definition": {
-          "entityName": "Role",
-          "schema": {
-            "$ref": "#/backend/entities/Role"
-          },
-          "description": "A dedicated marker collection to identify users with 'Admin' privileges. The existence of a document with a user's UID in this collection grants admin access, enabling authorization independence without `get()` calls. Documents in this collection are typically empty or contain minimal data, with their `id` being the `adminId`.",
-          "params": [
-            {
-              "name": "adminId",
-              "description": "The unique identifier of an administrator user."
-            }
-          ]
-        }
-      },
-      {
         "path": "/medicines/{medicineId}",
         "definition": {
           "entityName": "Medicine",
           "schema": {
             "$ref": "#/backend/entities/Medicine"
           },
-          "description": "Contains details and inventory information for all medicines available in the system. Publicly readable by all authenticated users for purchasing, but only writable/updatable by admin users.",
+          "description": "Stores details and stock levels for all pharmaceutical medicines. Designed for public read access to support inventory display, with write operations restricted to administrators. No specific denormalization for authorization is required within the document itself, as access is global or role-based.",
           "params": [
             {
               "name": "medicineId",
-              "description": "The unique identifier for a specific medicine."
+              "description": "The unique identifier of the medicine."
             }
           ]
         }
       },
       {
-        "path": "/users/{userId}/orders/{orderId}",
+        "path": "/users/{patientId}/orders/{orderId}",
         "definition": {
           "entityName": "Order",
           "schema": {
             "$ref": "#/backend/entities/Order"
           },
-          "description": "Stores individual order details, nested under the owning user's profile. Each order document includes the `userId` for explicit ownership, facilitating secure, path-based access for the user and enabling collection group queries for administrators.",
+          "description": "Represents a single order placed by a patient. This subcollection is owned by the respective patient. The 'patientId' field within each document denormalizes the ownership context, enabling authorization independence by matching 'request.auth.uid' with the path parameter and document field.",
           "params": [
             {
-              "name": "userId",
-              "description": "The unique identifier of the user who placed the order."
+              "name": "patientId",
+              "description": "The unique identifier of the patient who owns this order (matches request.auth.uid for secure access)."
             },
             {
               "name": "orderId",
-              "description": "The unique identifier for a specific order."
+              "description": "The unique identifier for this specific order."
             }
           ]
         }
       },
       {
-        "path": "/roles/{roleId}",
+        "path": "/users/{patientId}/orderHistory/{historyId}",
         "definition": {
-          "entityName": "Role",
+          "entityName": "OrderHistory",
           "schema": {
-            "$ref": "#/backend/entities/Role"
+            "$ref": "#/backend/entities/OrderHistory"
           },
-          "description": "Defines the different roles available in the application (e.g., 'Admin', 'Customer'). This collection serves as a reference for role definitions and is generally static, with read access primarily for internal system use or by administrators.",
+          "description": "Stores a historical record of medicine purchases for a specific patient. This subcollection is owned by the respective patient. The 'patientId' field within each document denormalizes the ownership context, enabling authorization independence by matching 'request.auth.uid' with the path parameter and document field, crucial for predictive refill calculations.",
           "params": [
             {
-              "name": "roleId",
-              "description": "The unique identifier for a specific role."
+              "name": "patientId",
+              "description": "The unique identifier of the patient to whom this order history record belongs (matches request.auth.uid for secure access)."
+            },
+            {
+              "name": "historyId",
+              "description": "The unique identifier for this specific historical purchase record."
             }
           ]
         }
       }
     ],
-    "reasoning": "The recommended Firestore structure is designed to be highly secure, scalable, and debuggable, strictly adhering to the core design principles and mandates. Authorization Independence, a critical principle, is achieved through a multi-pronged approach:\n\n1.  **Admin Role Authorization:** Instead of relying on a `roleId` within the `UserProfile` document that would necessitate a `get()` call in security rules, a dedicated collection `/roles_admin/{adminId}` is used. An admin user is identified by the mere *existence* of a document with their `uid` in this collection (`exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))`). This completely eliminates hierarchical authorization dependencies and allows for atomic operations and simpler rules.\n\n2.  **User-Owned Data:** For entities like `Order` that are intrinsically linked to a `UserProfile`, the `userId` is explicitly embedded within each `Order` document. By structuring orders as `/users/{userId}/orders/{orderId}`, the `userId` in the path (e.g., `request.auth.uid == userId`) and the `userId` field in the document (`resource.data.userId`) directly provide the necessary authorization context without any additional `get()` calls.\n\n**QAP (Queries as Permissions) Support:**\n\n*   **Publicly Accessible Data (Inventory):** The `/medicines` collection is designed for public read access by all authenticated users. This allows users to query for available medicines without requiring complex filtering logic in security rules. The rule simply grants read access to all authenticated users, inherently supporting a QAP for inventory listing.\n\n*   **User-Specific Data (Order History):** The `/users/{userId}/orders` subcollection enforces ownership at the path level. A user can only list (query) their own orders by targeting `users/$(request.auth.uid)/orders`. This structure ensures that `list` operations implicitly filter by the authenticated user's ID, thereby satisfying QAP for user-specific data.\n\n*   **Admin Access:** Admin users, identified by their presence in `/roles_admin`, have broad read/write access to `medicines` and can perform collection group queries on `orders` (across all users) to access refill order details, inventory, and other administrative features, satisfying their QAP requirements without compromising user data privacy.\n\n**Structural Segregation and Access Modeling:**\n\n*   **User Profiles (`/users/{userId}`):** Personal data, primarily readable by the user themselves and by admins.\n*   **Admin Roles (`/roles_admin/{adminId}`):** A simple marker collection for efficient admin role checking.\n*   **Medicine Inventory (`/medicines/{medicineId}`):** Global, publicly readable data for authenticated users, with write access restricted to admins.\n*   **User Orders (`/users/{userId}/orders/{orderId}`):** Hierarchical, private to each user, but also accessible by admins for operational purposes via collection group queries.\n*   **Role Definitions (`/roles/{roleId}`):** Static, reference data for defining application roles, primarily for backend consistency.\n\nThis design prioritizes explicit ownership, denormalized authorization context, and structural segregation to simplify security rules, enhance debuggability, and support efficient queries for both regular users and administrators."
+    "reasoning": "The Firestore structure for CuraCare AI is designed to be secure, scalable, and debuggable by strictly adhering to the core design principles. This involves strategic pathing, denormalization of authorization context, and clear segregation of data.\n\n**Authorization Independence (CRITICAL):**\nThis design prioritizes authorization independence to eliminate `get()` calls within security rules and enable atomic operations. \n*   **User-Specific Data (`Order`, `OrderHistory`):** For all patient-owned data, a hierarchical path structure `/users/{patientId}/<collectionName>/{documentId}` is used. Each `Order` and `OrderHistory` document includes a `patientId` field, which is denormalized directly into the document itself and matches the `{patientId}` wildcard in the path. This allows security rules to directly compare `request.auth.uid` with the `patientId` in the document or the path, e.g., `request.auth.uid == patientId` or `request.auth.uid == resource.data.patientId`. This eliminates any need to `get()` a parent `User` document to verify ownership.\n*   **Global Data (`Medicine`):** The `/medicines` collection is a top-level collection. Its authorization (public read, admin write) is self-contained and does not depend on data from other collections via `get()` calls.\n*   **Global Roles (Admin):** While not explicitly listed in `firestorePaths` due to schema constraints, administrative roles are conceptually managed via a dedicated top-level collection, `/roles_admin/{uid}`. An admin's authorization would be determined by the mere existence of a document at `/roles_admin/$(request.auth.uid)`. This 'existence over content' approach ensures role checks are simple and atomic, avoiding complex `get()` operations on user profiles.\n\n**QAPs (Rules are not Filters):**\nThis structure enables secure and efficient `list` operations:\n*   **Global Inventory (`/medicines`):** This collection is designed for public read access, supporting the `GET /inventory` endpoint. Rules can permit all authenticated and unauthenticated users to `list` documents in this collection, ensuring the client retrieves only what it's authorized to see (which is all items).\n*   **Patient-Specific Data (`/users/{patientId}/orders`, `/users/{patientId}/orderHistory`):** For patient-specific data such as orders and order history (supporting `GET /user-history/{patient}` and `GET /refill-alerts`), the path-based ownership is key. Security rules will enforce `allow list: if request.auth.uid == patientId;`. This ensures that a user can only `list` documents within their own `/users/{patientId}` subcollections, preventing data leakage and enabling efficient queries without the need for client-side filtering or inefficient database scans based on permissions.\n\n**Structural Segregation & Access Modeling:**\n*   **Homogeneous Security Posture:** Each collection or subcollection maintains a homogeneous security posture. `/medicines` is globally readable. `/users/{patientId}/orders` and `/users/{patientId}/orderHistory` are strictly owned by the respective patient (or accessible by an administrator).\n*   **Path-Based Ownership:** The `/users/{patientId}/` prefix consistently identifies data belonging to a specific patient, making ownership-based rules straightforward.\n*   **Global Roles:** Administrative access, crucial for `POST /update-inventory` and `GET /admin/dashboard`, is managed by checking for the existence of documents in a dedicated `/roles_admin` collection.\n\n**Data Clarity and Predictability:**\n*   **Explicit State Modeling:** The `Order` entity uses a clear `status` field (e.g., 'pending', 'dispatched') for explicit state management. \n*   **Predictable Schema:** Fields like `patientId`, `medicineId`, and `ownerId` are consistently named and used for authorization and relationships.\n*   **Radical Consistency:** Wildcards are descriptive (e.g., `{patientId}`, `{medicineId}`)."
   }
 }
