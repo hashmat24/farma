@@ -8,6 +8,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { db } from '@/app/lib/db';
 import { langfuse } from '@/ai/langfuse';
+import { sendOrderEmail } from '@/app/lib/email-service';
 
 // --- Schema Definitions ---
 
@@ -56,7 +57,7 @@ const get_user_history = ai.defineTool(
     const span = langfuse.span({ name: 'get_user_history', input, traceId: input.trace_id });
     const patient = db.getPatient(input.patient_id);
     const history = db.getPatientHistory(input.patient_id);
-    const output = { name: patient?.name, history: patient?.history, past_orders: history };
+    const output = { name: patient?.name, history: patient?.history, past_orders: history, email: patient?.email };
     span.end({ output });
     return output;
   }
@@ -154,6 +155,44 @@ const trigger_webhook = ai.defineTool(
   }
 );
 
+const send_confirmation_email = ai.defineTool(
+  {
+    name: 'send_confirmation_email',
+    description: 'Sends a clinical order confirmation email to the patient.',
+    inputSchema: z.object({ 
+      patient_id: z.string(), 
+      order_id: z.string(), 
+      medicine_id: z.string(), 
+      qty: z.number(),
+      trace_id: z.string() 
+    }),
+    outputSchema: z.any(),
+  },
+  async (input) => {
+    const span = langfuse.span({ name: 'send_confirmation_email', input, traceId: input.trace_id });
+    const patient = db.getPatient(input.patient_id);
+    const med = db.getMedicine(input.medicine_id);
+    
+    if (!patient?.email || !med) {
+      span.end({ output: { success: false, message: 'Missing patient or medicine info' } });
+      return { success: false };
+    }
+
+    const result = await sendOrderEmail({
+      to: patient.email,
+      patientName: patient.name,
+      orderId: input.order_id,
+      medicineName: med.name,
+      dosage: med.dosage,
+      quantity: input.qty,
+      totalPrice: med.unit_price * input.qty
+    });
+
+    span.end({ output: result });
+    return result;
+  }
+);
+
 // --- Prompt Definition ---
 
 const autonomousPharmacistPrompt = ai.definePrompt({
@@ -167,11 +206,18 @@ const autonomousPharmacistPrompt = ai.definePrompt({
     check_inventory,
     create_order,
     update_inventory,
-    trigger_webhook
+    trigger_webhook,
+    send_confirmation_email
   ],
   system: `You are CuraCare AI, a proactive autonomous clinical pharmacist assistant. 
-Follow the 4-step sequence exactly. Always confirm before executing order mutations.
-Ensure you pass the provided 'trace_id' to every tool call for observability.`,
+Follow the 5-step sequence exactly:
+1. Retrieve history & verify prescription.
+2. Check inventory availability.
+3. Confirm with user before creating order.
+4. Execute mutations: create_order & update_inventory.
+5. Trigger warehouse webhook AND send_confirmation_email immediately.
+
+Always ensure you pass the provided 'trace_id' to every tool call for observability.`,
   prompt: `Patient ID: {{{patient_id}}}
 User message: {{{message}}}
 Trace ID: {{{trace_id}}}
