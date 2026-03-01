@@ -16,10 +16,13 @@ CuraCare AI is an enterprise-grade agentic healthcare system. It automates pharm
 ### A. The "Clinical Safety Gate"
 The AI is strictly forbidden from executing mutations (`create_order`) without first passing through validation tools (`check_prescription`, `check_inventory`). This is enforced at the Genkit Flow level.
 
-### B. API-Less Backend
+### B. Conversational Ordering Engine
+We use an agentic "State Machine" pattern. The AI handles messy inputs (e.g., "Get me those blue pills again"), extracts the `medicineId` via tools, verifies clinical requirements, and requests a final "Confirmation" before updating the physical inventory.
+
+### C. API-Less Backend
 We eliminate the overhead of FastAPI or external REST servers by using Next.js Server Actions. This allows the AI flows to call database functions directly with shared TypeScript interfaces.
 
-### C. Observability & Auditability
+### D. Observability & Auditability
 Every order record contains a `trace_id`. This links the physical order to the specific LLM reasoning chain in Langfuse, satisfying healthcare requirements for decision transparency.
 
 ## 4. DATA MODEL (High Level)
