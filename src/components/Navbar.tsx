@@ -25,7 +25,7 @@ const translations = {
       chat: 'AI Chat',
       inventory: 'Inventory',
       refills: 'Refills',
-      orders: 'Orders',
+      orders: 'Order History',
     },
     account: {
       security: 'Account Security',
@@ -82,9 +82,9 @@ export function Navbar() {
 
   const links = [
     { href: '/chat', label: t.nav.chat, icon: MessageSquare, roles: ['user', 'admin'] },
+    { href: '/orders', label: t.nav.orders, icon: History, roles: ['user', 'admin'] },
     { href: '/inventory', label: t.nav.inventory, icon: Package, roles: ['admin'] },
     { href: '/refills', label: t.nav.refills, icon: Bell, roles: ['admin'] },
-    { href: '/orders', label: t.nav.orders, icon: History, roles: ['admin'] },
   ];
 
   const handleLanguageToggle = () => {

@@ -6,7 +6,7 @@ import { useUser } from '@/firebase/provider';
 import { Loader2 } from 'lucide-react';
 
 const PUBLIC_PATHS = ['/login', '/signup'];
-const ADMIN_PATHS = ['/inventory', '/refills', '/orders', '/admin'];
+const ADMIN_PATHS = ['/inventory', '/refills', '/admin'];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, role, isUserLoading } = useUser();
