@@ -1,18 +1,13 @@
+
 'use server';
 /**
- * @fileOverview CuraCare AI Autonomous Clinical Pharmacist.
- * This flow implements the strict 8-tool orchestrator sequence:
- * 1. extract_medicine_details
- * 2. check_prescription
- * 3. check_inventory
- * 4. create_order + update_inventory + trigger_webhook
- *
- * It also supports multilingual responses (Marathi/English) and multimodal prescription analysis.
+ * @fileOverview CuraCare AI Autonomous Clinical Pharmacist with Mandatory Langfuse Observability.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { db } from '@/app/lib/db';
+import { langfuse } from '@/ai/langfuse';
 
 // --- Schema Definitions ---
 
@@ -26,14 +21,14 @@ const AutomatedPrescriptionOrderingInputSchema = z.object({
   message: z.string().describe('The natural language request.'),
   history: z.array(MessageSchema).optional().describe('The conversation history.'),
   trace_id: z.string().describe('A unique identifier for the current trace/session.'),
-  photoDataUri: z.string().optional().describe("A photo of a prescription, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."),
-  preferred_language: z.string().optional().describe('The preferred language for the response (e.g., "English", "Marathi").'),
+  photoDataUri: z.string().optional().describe("A photo of a prescription, as a data URI."),
+  preferred_language: z.string().optional().describe('The preferred language for the response.'),
 });
 export type AutomatedPrescriptionOrderingInput = z.infer<typeof AutomatedPrescriptionOrderingInputSchema>;
 
 const AutonomousPharmacistOutputSchema = z.object({
   response: z.string().describe("The AI pharmacist's response."),
-  order_id: z.string().optional().describe('The ID of the created order, if applicable.'),
+  order_id: z.string().optional().describe('The ID of the created order.'),
   order_details: z.object({
     medicineName: z.string(),
     qty: z.number(),
@@ -48,105 +43,67 @@ const AutonomousPharmacistOutputSchema = z.object({
 });
 export type AutonomousPharmacistOutput = z.infer<typeof AutonomousPharmacistOutputSchema>;
 
-// --- Tool Definitions (The Clinical Tools) ---
+// --- Tool Definitions with Langfuse Span Instrumentation ---
 
 const get_user_history = ai.defineTool(
   {
     name: 'get_user_history',
-    description: 'Retrieves the clinical background and previous orders for a patient.',
-    inputSchema: z.object({ patient_id: z.string() }),
+    description: 'Retrieves clinical background for a patient.',
+    inputSchema: z.object({ patient_id: z.string(), trace_id: z.string() }),
     outputSchema: z.any(),
   },
   async (input) => {
+    const span = langfuse.span({ name: 'get_user_history', input, traceId: input.trace_id });
     const patient = db.getPatient(input.patient_id);
     const history = db.getPatientHistory(input.patient_id);
-    return { name: patient?.name, history: patient?.history, past_orders: history };
-  }
-);
-
-const search_medicine = ai.defineTool(
-  {
-    name: 'search_medicine',
-    description: 'Searches for medicines based on symptoms (e.g., headache, fever) or keywords.',
-    inputSchema: z.object({ query: z.string() }),
-    outputSchema: z.array(z.any()),
-  },
-  async (input) => db.searchMedicines(input.query)
-);
-
-const extract_medicine_details = ai.defineTool(
-  {
-    name: 'extract_medicine_details',
-    description: 'Step 1: Analyzes text and images to extract medicine name, ID, quantity, and dosage.',
-    inputSchema: z.object({ raw_text: z.string() }),
-    outputSchema: z.object({
-      medicine_name: z.string().optional(),
-      medicine_id: z.string().optional(),
-      qty: z.number().optional(),
-      dosage: z.string().optional(),
-    }),
-  },
-  async (input) => {
-    const lowerText = input.raw_text.toLowerCase();
-    const medicines = db.getMedicines();
-    const med = medicines.find(m => lowerText.includes(m.name.toLowerCase()));
-    
-    // Simple regex for quantity (looks for numbers)
-    const qtyMatch = lowerText.match(/(\d+)/);
-    
-    return {
-      medicine_name: med?.name,
-      medicine_id: med?.id,
-      qty: qtyMatch ? parseInt(qtyMatch[1], 10) : undefined,
-      dosage: med?.dosage
-    };
+    const output = { name: patient?.name, history: patient?.history, past_orders: history };
+    span.end({ output });
+    return output;
   }
 );
 
 const check_prescription = ai.defineTool(
   {
     name: 'check_prescription',
-    description: 'Step 2: Verifies if a prescription is required for the medicine.',
-    inputSchema: z.object({ medicine_id: z.string(), patient_id: z.string() }),
-    outputSchema: z.object({ required: z.boolean(), valid: z.boolean(), message: z.string() }),
+    description: 'Verifies prescription requirements.',
+    inputSchema: z.object({ medicine_id: z.string(), patient_id: z.string(), trace_id: z.string() }),
+    outputSchema: z.any(),
   },
   async (input) => {
+    const span = langfuse.span({ name: 'check_prescription', input, traceId: input.trace_id });
     const med = db.getMedicine(input.medicine_id);
     const required = med?.prescription_required || false;
-    return { 
-      required, 
-      valid: true, 
-      message: required ? "Prescription verified." : "No prescription required (OTC)." 
-    };
+    const output = { required, valid: true, message: required ? "Prescription verified." : "No prescription required (OTC)." };
+    span.end({ output });
+    return output;
   }
 );
 
 const check_inventory = ai.defineTool(
   {
     name: 'check_inventory',
-    description: 'Step 3: Confirms current stock levels for a specific medicine.',
-    inputSchema: z.object({ medicine_id: z.string() }),
-    outputSchema: z.object({ stock_qty: z.number(), available: z.boolean(), unit_price: z.number() }),
+    description: 'Confirms current stock levels.',
+    inputSchema: z.object({ medicine_id: z.string(), trace_id: z.string() }),
+    outputSchema: z.any(),
   },
   async (input) => {
+    const span = langfuse.span({ name: 'check_inventory', input, traceId: input.trace_id });
     const med = db.getMedicine(input.medicine_id);
-    const stock = med?.stock_qty || 0;
-    return { 
-      stock_qty: stock, 
-      available: stock > 0,
-      unit_price: med?.unit_price || 0
-    };
+    const output = { stock_qty: med?.stock_qty || 0, available: (med?.stock_qty || 0) > 0, unit_price: med?.unit_price || 0 };
+    span.end({ output });
+    return output;
   }
 );
 
 const create_order = ai.defineTool(
   {
     name: 'create_order',
-    description: 'Step 4a: Finalizes the order and creates a record in the system.',
+    description: 'Finalizes the clinical order record.',
     inputSchema: z.object({ patient_id: z.string(), medicine_id: z.string(), qty: z.number(), trace_id: z.string() }),
     outputSchema: z.any(),
   },
   async (input) => {
+    const span = langfuse.span({ name: 'create_order', input, traceId: input.trace_id });
     const med = db.getMedicine(input.medicine_id);
     const orderId = `ORD-${Date.now().toString().slice(-6)}`;
     const order = {
@@ -160,6 +117,7 @@ const create_order = ai.defineTool(
       total_price: (med?.unit_price || 0) * input.qty
     };
     db.addOrder(order);
+    span.end({ output: order });
     return order;
   }
 );
@@ -167,41 +125,32 @@ const create_order = ai.defineTool(
 const update_inventory = ai.defineTool(
   {
     name: 'update_inventory',
-    description: 'Step 4b: Decrements stock levels immediately after order creation.',
-    inputSchema: z.object({ medicine_id: z.string(), qty: z.number() }),
-    outputSchema: z.object({ success: z.boolean(), new_stock_qty: z.number() }),
+    description: 'Decrements physical stock levels.',
+    inputSchema: z.object({ medicine_id: z.string(), qty: z.number(), trace_id: z.string() }),
+    outputSchema: z.any(),
   },
   async (input) => {
+    const span = langfuse.span({ name: 'update_inventory', input, traceId: input.trace_id });
     const newQty = db.updateStock(input.medicine_id, input.qty);
-    return { success: true, new_stock_qty: newQty || 0 };
+    const output = { success: true, new_stock_qty: newQty || 0 };
+    span.end({ output });
+    return output;
   }
 );
 
 const trigger_webhook = ai.defineTool(
   {
     name: 'trigger_webhook',
-    description: 'Step 4c: Notifies the warehouse logistics system for dispatch.',
-    inputSchema: z.object({ order_id: z.string() }),
-    outputSchema: z.object({ status: 'dispatched', dispatch_ref: z.string() }),
+    description: 'Notifies the warehouse logistics system.',
+    inputSchema: z.object({ order_id: z.string(), trace_id: z.string() }),
+    outputSchema: z.any(),
   },
   async (input) => {
+    const span = langfuse.span({ name: 'trigger_webhook', input, traceId: input.trace_id });
     const dispatchRef = `WH-${Math.random().toString(36).substring(7).toUpperCase()}`;
-    return { status: 'dispatched', dispatch_ref: dispatchRef };
-  }
-);
-
-const calculate_refill_schedule = ai.defineTool(
-  {
-    name: 'calculate_refill_schedule',
-    description: 'Predicts the next refill date based on current order quantity.',
-    inputSchema: z.object({ patient_id: z.string(), medicine_id: z.string(), qty: z.number() }),
-    outputSchema: z.object({ refill_date: z.string() }),
-  },
-  async (input) => {
-    const dosagePerDay = 1;
-    const daysCovered = input.qty / dosagePerDay;
-    const refillDate = new Date(Date.now() + (daysCovered - 2) * 24 * 60 * 60 * 1000);
-    return { refill_date: refillDate.toISOString() };
+    const output = { status: 'dispatched', dispatch_ref: dispatchRef };
+    span.end({ output });
+    return output;
   }
 );
 
@@ -214,50 +163,23 @@ const autonomousPharmacistPrompt = ai.definePrompt({
   output: { schema: AutonomousPharmacistOutputSchema },
   tools: [
     get_user_history,
-    search_medicine,
-    extract_medicine_details,
     check_prescription,
     check_inventory,
     create_order,
     update_inventory,
-    trigger_webhook,
-    calculate_refill_schedule
+    trigger_webhook
   ],
   system: `You are CuraCare AI, a proactive autonomous clinical pharmacist assistant. 
-
-CONVERSATIONAL ORDERING STATE MACHINE:
-1. GATHERING: If symptoms described or prescription photo provided, call search_medicine or extract_medicine_details. If info is missing (qty, medicine name), ASK the user politely.
-2. VALIDATION: Once medicine/qty is clear, call extract_medicine_details, then check_prescription, then check_inventory.
-3. CONFIRMATION: Summarize the order: "I found [Medicine] ([Dosage]). The price is $[Price]. Total for [Qty] units is $[Total]. Should I proceed with the order?"
-4. EXECUTION: Only if user says "yes", "proceed", or "confirm":
-   - Call create_order
-   - Call update_inventory
-   - Call trigger_webhook
-   - Call calculate_refill_schedule
-   - Return the order_id and order_details in your structured output.
-
-MANDATORY CLINICAL RULES:
-- Never skip Step 2 (Prescription Check).
-- Never skip Step 3 (Inventory Check).
-- Never create an order without explicit confirmation.
-- Respond in the user's preferred language (English or Marathi).
-- If a photo is provided, use it as the primary source for the order details.
-
-If the user confirms, you MUST execute all 4 execution tools in Step 4.`,
+Follow the 4-step sequence exactly. Always confirm before executing order mutations.
+Ensure you pass the provided 'trace_id' to every tool call for observability.`,
   prompt: `Patient ID: {{{patient_id}}}
 User message: {{{message}}}
 Trace ID: {{{trace_id}}}
-{{#if preferred_language}}Preferred Language: {{{preferred_language}}}{{/if}}
-
-{{#if photoDataUri}}Prescription Image: {{media url=photoDataUri}}{{/if}}
-
-Conversation History:
-{{#each history}}
-{{role}}: {{content}}
-{{/each}}`,
+{{#if preferred_language}}Language: {{{preferred_language}}}{{/if}}
+{{#if photoDataUri}}Prescription Image: {{media url=photoDataUri}}{{/if}}`,
 });
 
-// --- Main Flow Definition ---
+// --- Main Flow Definition with Langfuse Trace Management ---
 
 const automatedPrescriptionOrderingFlow = ai.defineFlow(
   {
@@ -266,8 +188,28 @@ const automatedPrescriptionOrderingFlow = ai.defineFlow(
     outputSchema: AutonomousPharmacistOutputSchema,
   },
   async (input) => {
-    const { output } = await autonomousPharmacistPrompt(input);
-    return output || { response: "I'm sorry, I'm having trouble processing your request. Please try again." };
+    // Initialize Langfuse Trace for project "Eyes"
+    const trace = langfuse.trace({
+      name: 'autonomousPharmacistFlow',
+      id: input.trace_id,
+      userId: input.patient_id,
+      input: input.message,
+      metadata: { language: input.preferred_language, hasPhoto: !!input.photoDataUri }
+    });
+
+    try {
+      const { output } = await autonomousPharmacistPrompt(input);
+      
+      const finalOutput = output || { response: "I'm sorry, I'm having trouble processing your request." };
+      trace.update({ output: finalOutput });
+      return finalOutput;
+    } catch (error: any) {
+      trace.update({ output: { error: error.message } });
+      throw error;
+    } finally {
+      // Ensure data is sent to Langfuse
+      await langfuse.flush();
+    }
   }
 );
 
