@@ -9,7 +9,7 @@ export type Medicine = {
   dosage: string;
   unit_price: number;
   unit: string;
-  description: string; // Added description for symptom matching
+  description: string;
 };
 
 export type Order = {
@@ -41,24 +41,31 @@ export type RefillAlert = {
   alert: boolean;
 };
 
-// Global singleton to simulate an existing dataset
 const globalStore = global as any;
 
 if (!globalStore.medicines) {
   globalStore.medicines = [
-    { id: 'MED001', name: 'Paracetamol', category: 'Analgesic', stock_qty: 150, reorder_threshold: 50, prescription_required: false, dosage: '500mg', unit_price: 5.50, unit: 'Tablets', description: 'Effective for headaches, fever, and minor body pains.' },
-    { id: 'MED002', name: 'Ibuprofen', category: 'NSAID', stock_qty: 15, reorder_threshold: 30, prescription_required: false, dosage: '200mg', unit_price: 8.20, unit: 'Capsules', description: 'Reduces inflammation and treats headaches or muscle aches.' },
-    { id: 'MED003', name: 'Amoxicillin', category: 'Antibiotic', stock_qty: 45, reorder_threshold: 20, prescription_required: true, dosage: '250mg', unit_price: 15.00, unit: 'Capsules', description: 'Treatment for bacterial infections. Requires a prescription.' },
-    { id: 'MED004', name: 'Lisinopril', category: 'ACE Inhibitor', stock_qty: 120, reorder_threshold: 40, prescription_required: true, dosage: '10mg', unit_price: 12.00, unit: 'Tablets', description: 'Management of hypertension (high blood pressure).' },
-    { id: 'MED005', name: 'Aspirin', category: 'Analgesic', stock_qty: 8, reorder_threshold: 25, prescription_required: false, dosage: '81mg', unit_price: 4.00, unit: 'Tablets', description: 'Commonly used for pain relief and blood thinning.' },
+    { id: '16066', name: 'Panthenol Spray', category: 'Skin Care', stock_qty: 85, reorder_threshold: 20, prescription_required: false, dosage: '130 g', unit_price: 16.95, unit: 'Spray', description: 'Schaumspray zur Anwendung auf der Haut. Fördert die Regeneration gereizter oder geschädigter Haut.' },
+    { id: '976308', name: 'NORSAN Omega-3 Total', category: 'Supplements', stock_qty: 42, reorder_threshold: 15, prescription_required: false, dosage: '200 ml', unit_price: 27.00, unit: 'Bottle', description: 'Flüssiges Omega-3 aus Fisch. Unterstützt Herz, Gehirn und Gelenke.' },
+    { id: '977179', name: 'NORSAN Omega-3 Vegan', category: 'Supplements', stock_qty: 30, reorder_threshold: 10, prescription_required: false, dosage: '100 ml', unit_price: 29.00, unit: 'Bottle', description: 'Pflanzliches Omega-3 aus Algen. Geeignet für Vegetarier und Veganer.' },
+    { id: '1103035', name: 'Vitasprint Pro Energie', category: 'Vitamins', stock_qty: 110, reorder_threshold: 25, prescription_required: false, dosage: '8 st', unit_price: 15.95, unit: 'Vials', description: 'Nahrungsergänzungsmittel mit B-Vitaminen und Aminosäuren zur Verringerung von Müdigkeit.' },
+    { id: '1162261', name: 'Kijimea Reizdarm PRO', category: 'Gastrointestinal', stock_qty: 55, reorder_threshold: 15, prescription_required: false, dosage: '28 st', unit_price: 38.99, unit: 'Capsules', description: 'Medizinisches Produkt zur Linderung von Symptomen des Reizdarmsyndroms.' },
+    { id: '1210016', name: 'OMNI-BiOTiC SR-9', category: 'Probiotics', stock_qty: 24, reorder_threshold: 10, prescription_required: false, dosage: '28x3 g', unit_price: 44.50, unit: 'Sachets', description: 'Probiotikum mit B-Vitaminen zur Unterstützung der Darmflora und des Energiestoffwechsels.' },
+    { id: '1329121', name: 'Paracetamol apodiscounter 500 mg', category: 'Analgesic', stock_qty: 500, reorder_threshold: 50, prescription_required: false, dosage: '20 st', unit_price: 2.06, unit: 'Tablets', description: 'Schmerz- und fiebersenkendes Arzneimittel.' },
+    { id: '202006', name: 'Ramipril - 1 A Pharma 10 mg', category: 'Cardiovascular', stock_qty: 90, reorder_threshold: 20, prescription_required: true, dosage: '20 st', unit_price: 12.59, unit: 'Tablets', description: 'Verschreibungspflichtiges Arzneimittel bei Behandlung von Bluthochdruck.' },
+    { id: '324024', name: 'Vitasprint B12 Kapseln', category: 'Vitamins', stock_qty: 75, reorder_threshold: 15, prescription_required: false, dosage: '20 st', unit_price: 17.04, unit: 'Capsules', description: 'Vitamin-B12-Präparat zur Unterstützung von Energie und Nervenfunktion.' },
+    { id: '335765', name: 'Nurofen 200 mg Schmelztabletten', category: 'Analgesic', stock_qty: 60, reorder_threshold: 15, prescription_required: false, dosage: '12 st', unit_price: 10.98, unit: 'Tablets', description: 'Ibuprofen-Schmerzmittel in schnell löslicher Form.' },
+    { id: '717525', name: 'Diclo-ratiopharm Schmerzgel', category: 'Topical Analgesic', stock_qty: 140, reorder_threshold: 30, prescription_required: false, dosage: '50 g', unit_price: 8.89, unit: 'Tube', description: 'Schmerzgel zur äußeren Anwendung bei Muskel- und Gelenkschmerzen.' },
+    { id: '1273105', name: 'Iberogast Classic', category: 'Gastrointestinal', stock_qty: 48, reorder_threshold: 10, prescription_required: false, dosage: '50 ml', unit_price: 28.98, unit: 'Bottle', description: 'Pflanzliches Arzneimittel bei Magen-Darm-Beschwerden.' },
+    { id: '899231', name: 'Vigantolvit 2000 I.E. Vitamin D3', category: 'Vitamins', stock_qty: 200, reorder_threshold: 40, prescription_required: false, dosage: '120 st', unit_price: 17.99, unit: 'Tablets', description: 'Vitamin-D-Präparat zur Unterstützung von Knochen und Immunsystem.' },
+    { id: '1352774', name: 'Prostata Men Kapseln', category: 'Men Health', stock_qty: 35, reorder_threshold: 10, prescription_required: false, dosage: '60 st', unit_price: 19.99, unit: 'Capsules', description: 'Nahrungsergänzungsmittel zur Unterstützung der Prostatagesundheit.' }
   ];
 }
 
 if (!globalStore.orders) {
   globalStore.orders = [
-    { id: 'ORD-001', patient_id: 'patient123', medicine_id: 'MED001', qty: 30, date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), status: 'delivered', trace_id: 't-1', total_price: 165.00 },
-    { id: 'ORD-002', patient_id: 'patient123', medicine_id: 'MED004', qty: 60, date: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(), status: 'delivered', trace_id: 't-2', total_price: 720.00 },
-    { id: 'ORD-003', patient_id: 'patient456', medicine_id: 'MED003', qty: 10, date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), status: 'shipped', trace_id: 't-3', total_price: 150.00 },
+    { id: 'ORD-001', patient_id: 'patient123', medicine_id: '1329121', qty: 2, date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), status: 'delivered', trace_id: 't-1', total_price: 4.12 },
+    { id: 'ORD-002', patient_id: 'patient123', medicine_id: '202006', qty: 1, date: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(), status: 'delivered', trace_id: 't-2', total_price: 12.59 },
   ];
 }
 
@@ -70,15 +77,7 @@ if (!globalStore.patients) {
       age: 45, 
       member_id: 'CC-9988-AA', 
       email: 'john.doe@example.com',
-      history: ['Hypertension', 'Seasonal Allergies', 'Lower Back Pain'] 
-    },
-    { 
-      id: 'patient456', 
-      name: 'Sarah Smith', 
-      age: 32, 
-      member_id: 'CC-1122-BB', 
-      email: 'sarah.s@example.com',
-      history: ['Asthma', 'Chronic Sinusitis'] 
+      history: ['Hypertension', 'Seasonal Allergies'] 
     }
   ];
 }
